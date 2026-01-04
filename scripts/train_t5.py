@@ -11,7 +11,7 @@ from transformers import (
     Seq2SeqTrainer
 )
 import numpy as np
-from datasets import load_metric
+from evaluate import load_metric
 
 # Load metrics
 wer_metric = load_metric("wer")
