@@ -68,11 +68,14 @@ def main():
     ds = ds.rename_columns(column_mapper)
     ds = ds.remove_columns([col for col in ds['train'].column_names if col not in columns_to_keep])
 
+    new_dataset_uri = 'tira-parsing/fst-output'
     ds.push_to_hub(
-        'tira-parsing/fst-output',
+        new_dataset_uri,
         commit_message='Added FST glosses to dataset',
         private=True
     )
+
+    print(f"Dataset with columns {columns_to_keep} pushed to Hub at '{new_dataset_uri}'.")
 
 if __name__ == '__main__':
     main()
