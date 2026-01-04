@@ -60,14 +60,13 @@ def main():
 
     column_mapper = {
         'orig_text': 'orig_text',
+        'translation': 'translation',
         'updated_gloss': 'FST_gloss',
         'updated_text': 'FST_text'
     }
     columns_to_keep = column_mapper.values()
     ds = ds.rename_columns(column_mapper)
     ds = ds.remove_columns([col for col in ds['train'].column_names if col not in columns_to_keep])
-
-    breakpoint()
 
     ds.push_to_hub(
         'tira-parsing/fst-output',
