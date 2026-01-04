@@ -11,12 +11,12 @@ from transformers import (
     Seq2SeqTrainer
 )
 import numpy as np
-from evaluate import load_metric
+import evaluate
 
 # Load metrics
-wer_metric = load_metric("wer")
-cer_metric = load_metric("cer")
-chrf_metric = load_metric("chrf")
+wer_metric = evaluate.load("wer")
+cer_metric = evaluate.load("cer")
+chrf_metric = evaluate.load("chrf")
 
 def compute_metrics(tokenizer, eval_preds):
     preds, labels = eval_preds
