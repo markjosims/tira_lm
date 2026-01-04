@@ -4,8 +4,18 @@ model:
 
 data:
   hf_uri: "tira-parsing/fst-output"
-  input_column: "FST_text"
-  target_column: "FST_gloss"
+  columns:
+    input_column: "orig_text"
+    target_column: "FST_text"
+  task:
+    prompt: |
+      prompt = f"""Provide the glosses for the following transcription in {lang}.
+
+      Transcription in {lang}: {transcription}
+      Transcription segmented: False
+      Translation in {metalang}: {translation}
+
+      Glosses: 
 
 training:
   output_dir: "./outputs"
