@@ -25,6 +25,7 @@ def compute_metrics(tokenizer, eval_preds):
 
     # Replace -100 in the labels as we can't decode them.
     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
 
     # Decode predictions and labels
     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
@@ -55,16 +56,16 @@ def compute_metrics(tokenizer, eval_preds):
 def preprocess_function(examples, prompt_template, tokenizer, max_length):
     inputs_w_prompt = [
         prompt_template.format(
-            input_text=example['input_text'],
-            translation=example.get('translation', '')
-        ) for example in examples
+            input_text=text,
+            translation=translation,
+        ) for text, translation in zip(examples['input_text'], examples['translation'])
     ]
     model_inputs = tokenizer(inputs_w_prompt, max_length=max_length, truncation=True)
     labels = tokenizer(text_target=examples["output_text"], max_length=max_length, truncation=True)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-@hydra.main(version_base="1.3", config_path="conf", config_name="config")
+@hydra.main(version_base="1.3", config_path="../conf", config_name="config")
 def main(cfg: DictConfig):
     # 1. Setup WandB
     os.environ["WANDB_PROJECT"] = cfg.wandb.project
@@ -76,8 +77,8 @@ def main(cfg: DictConfig):
     # 3. Load Data
     dataset = load_dataset(cfg.data.hf_uri)
     dataset = dataset.rename_columns({
-        cfg.data.input_column: "input_text",
-        cfg.data.target_column: "output_text"
+        cfg.data.columns.input_column: "input_text",
+        cfg.data.columns.target_column: "output_text"
     })
     
     tokenized_dataset = dataset.map(
@@ -96,7 +97,7 @@ def main(cfg: DictConfig):
         predict_with_generate=True,
         bf16=cfg.training.bf16,
         logging_steps=10,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=cfg.training.save_total_limit,
         report_to="wandb",
@@ -115,6 +116,7 @@ def main(cfg: DictConfig):
     )
 
     # 6. Train
+    trainer.evaluate()
     trainer.train()
     wandb.finish()
 
