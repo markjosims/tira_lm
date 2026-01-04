@@ -52,8 +52,14 @@ def compute_metrics(tokenizer, eval_preds):
         "chrf": chrf_results["score"],
     }
 
-def preprocess_function(examples, tokenizer, max_length):
-    model_inputs = tokenizer(examples["input_text"], max_length=max_length, truncation=True)
+def preprocess_function(examples, prompt_template, tokenizer, max_length):
+    inputs_w_prompt = [
+        prompt_template.format(
+            input_text=example['input_text'],
+            translation=example.get('translation', '')
+        ) for example in examples
+    ]
+    model_inputs = tokenizer(inputs_w_prompt, max_length=max_length, truncation=True)
     labels = tokenizer(text_target=examples["output_text"], max_length=max_length, truncation=True)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
@@ -68,11 +74,14 @@ def main(cfg: DictConfig):
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.name)
 
     # 3. Load Data
-    data_files = {"train": cfg.data.train_path, "validation": cfg.data.val_path}
-    dataset = load_dataset("json", data_files=data_files)
+    dataset = load_dataset(cfg.data.hf_uri)
+    dataset = dataset.rename_columns({
+        cfg.data.input_column: "input_text",
+        cfg.data.target_column: "output_text"
+    })
     
     tokenized_dataset = dataset.map(
-        lambda x: preprocess_function(x, tokenizer, cfg.model.max_length), 
+        lambda x: preprocess_function(x, cfg.data.task.prompt, tokenizer, cfg.model.max_length), 
         batched=True
     )
 

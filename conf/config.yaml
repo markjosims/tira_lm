@@ -7,13 +7,14 @@ data:
   columns:
     input_column: "orig_text"
     target_column: "FST_text"
+    translation_column: "translation"
   task:
     prompt: |
-      prompt = f"""Provide the glosses for the following transcription in {lang}.
+      prompt = f"""Provide the glosses for the following transcription in Tira.
 
-      Transcription in {lang}: {transcription}
+      Transcription in Tira: {input_text}
       Transcription segmented: False
-      Translation in {metalang}: {translation}
+      Translation in English: {translation}
 
       Glosses: 
 
