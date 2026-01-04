@@ -1,0 +1,21 @@
+model:
+  name: "lecslab/glosslm"
+  max_length: 512
+
+data:
+  hf_uri: "tira-parsing/fst-output"
+  input_column: "FST_text"
+  target_column: "FST_gloss"
+
+training:
+  output_dir: "./outputs"
+  learning_rate: 3e-4
+  batch_size: 4
+  grad_acc: 8
+  epochs: 10
+  bf16: true # Set to false if not on Ampere+ GPU
+  save_total_limit: 2
+
+wandb:
+  project: "Tira-LM"
+  run_name: "byt5-base-pretrain"
