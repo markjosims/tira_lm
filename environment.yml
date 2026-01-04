@@ -1,0 +1,37 @@
+name: parsing
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - ipykernel
+  - scikit-learn
+  - scipy
+  - numpy
+  - datasets
+  - transformers
+  - pytorch
+  - hydra
+  - wandb
+  - omegaconf
+  - pandas
+  - tqdm
+  - wordfreq
+  - unidecode
+  - openpyxl
+  - pytest
+  - graphviz
+  - pydot
+  - flask
+  - gunicorn
+  - sqlalchemy
+  - psycopg2-binary
+  - python-dotenv
+  - fire
+  - pyyaml
+  - pip
+  - pip:
+    - pynini==2.1.6
+    - jiwer
+    - sacrebleu
+
+prefix: /home/markjos/miniforge3/envs/parsing

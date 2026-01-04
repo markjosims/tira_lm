@@ -3,3 +3,6 @@ scikit-learn
 transformers
 datasets
 torch
+hydra
+wandb
+omegaconf
