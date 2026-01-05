@@ -6,7 +6,7 @@ data:
   hf_uri: "tira-parsing/fst-output"
   columns:
     input_column: "orig_text"
-    target_column: "FST_gloss"
+    target_column: "FST_text"
     translation_column: "translation"
   task:
     prompt: |
