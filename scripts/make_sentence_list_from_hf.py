@@ -4,6 +4,7 @@ dataset_uri = 'tira-parsing/tira-parsing'
 sentences_list = 'data/sentences.txt'
 
 def main():
+    print(f'Loading dataset from: {dataset_uri}')
     ds = load_dataset(dataset_uri)
     lines = []
     for split in ['train', 'test', 'validation']:
@@ -18,5 +19,9 @@ def main():
 
         ds[split].map(make_sentence_list, with_indices=True)
 
+    print(f'Writing sentences to: {sentences_list}')
     with open(sentences_list, 'w') as f:
         f.write('\n'.join(lines))
+
+if __name__ == '__main__':
+    main()
