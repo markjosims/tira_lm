@@ -16,7 +16,7 @@ data:
       Transcription segmented: False
       Translation in English: {translation}
 
-      Glosses: 
+      Glosses: """
 
 training:
   output_dir: "./outputs"
@@ -24,7 +24,7 @@ training:
   batch_size: 4
   grad_acc: 8
   epochs: 10
-  bf16: true # Set to false if not on Ampere+ GPU
+  bf16: true
   save_total_limit: 2
 
 wandb:
