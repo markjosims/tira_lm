@@ -1,9 +1,11 @@
-from typing import List, Tuple
+from typing import Dict, List, Literal, Tuple
 import re
 from numba import jit
 import numpy as np
 import random
 import os
+from dataclasses import dataclass, field
+from collections import defaultdict
 
 seed = os.environ.get('RANDOM_SEED', 1337)
 random.seed(seed)
@@ -228,8 +230,39 @@ Helper functions for tokenization
 consonant_regex = rf'[{consonants}]{dental_bridge}?'
 segment_w_tone = rf'[{consonants+vowels}][{tone}]'
 
+@dataclass
+class TokenArray:
+    data: Tuple[str, ...]
+    token_history: Dict[int, List['Edit']] = field(default_factory=defaultdict(list))
 
-def tokenize_string(untokenized_str: str) -> Tuple[str]:
+    def __getitem__(self, index):
+        return self.data[index]
+
+    def replace_token(self, index: int, new_token: str, edit: 'Edit') -> 'TokenArray':
+        """
+        Construct new TokenArray with token at index replaced by new_token,
+        and edit added to token_history.
+        """
+        preceding_tokens = list(self.data[:index]) if index > 0 else []
+        following_tokens = list(self.data[index+1:]) if index < len(self.data) else []
+        data = tuple(preceding_tokens + [new_token] + following_tokens)
+        token_history = self.token_history.copy()
+        token_history[index].append(edit)
+        return TokenArray(data=data, token_history=token_history)
+
+@dataclass
+class EditFunction:
+    name: str
+    edit_function: callable
+
+@dataclass
+class Edit:
+    edit_type: Literal['vowel_change', 'consonant_change', 'tone_change', 'epenthesis', 'deletion']
+    token_index: int
+    original_token: str
+    new_token: str
+
+def tokenize_string(untokenized_str: str) -> TokenArray:
     """
     Tokenizes a string into a tuple where each member is a single segment
     or segment + tone. Returns tuple rather than list as safeguard against
@@ -260,7 +293,7 @@ def tokenize_string(untokenized_str: str) -> Tuple[str]:
 Helper functions for matching tokens based on some condition
 """
 
-def find_tokens_w_char(tokens: Tuple[str, ...], char: str) -> List[int]:
+def find_tokens_w_char(tokens: TokenArray, char: str) -> List[int]:
     """
     Returns list of indices corresponding to tokens containing
     the specified character.
@@ -275,13 +308,49 @@ def find_tokens_w_char(tokens: Tuple[str, ...], char: str) -> List[int]:
     token_indices = [i for i, token in enumerate(tokens) if char in token]
     return token_indices
 
+def find_tokens_without_edit(tokens: TokenArray, edit_type: str) -> List[int]:
+    """
+    Returns list of indices corresponding to tokens that have not been edited
+    by the specified edit type.
+
+    Arguments:
+        tokens:     tuple of token strings
+        edit_type:  type of edit to check for (e.g. 'vowel_change')
+    Returns:
+        indices:    list of token indices
+    """
+
+    token_indices = [
+        i for i, token in enumerate(tokens)
+        if all(
+            edit.edit_type != edit_type for edit in tokens.token_history[i]
+        )
+    ]
+    return token_indices
+
+def get_index_intersection(*index_lists: List[List[int]]) -> List[int]:
+    """
+    Returns list of indices corresponding to tokens that satisfy all conditions
+    specified by index_lists.
+
+    Arguments:
+        index_lists: list of lists of token indices, where each list corresponds
+                     to a condition (e.g. contains char, has not been edited by
+                     a certain edit type)
+    Returns:
+        indices:    list of token indices
+    """
+    if not index_lists:
+        return []
+    return list(set.intersection(*[set(lst) for lst in index_lists]))
+
 def token_is_vowel(token: str) -> bool:
     return any(v in token for v in vowels)
 
 def token_is_consonant(token: str) -> bool:
     return any(c in token for c in consonants)
 
-def find_interconsonantal_vowels(tokens: Tuple[str, ...]) -> List[int]:
+def find_interconsonantal_vowels(tokens: TokenArray) -> List[int]:
     """
     Returns list of indices for any token corresponding to a vowel between
     two consonants.
@@ -312,7 +381,7 @@ def find_interconsonantal_vowels(tokens: Tuple[str, ...]) -> List[int]:
 
     return token_indices
 
-def find_first_vowel_in_hiatus(tokens: Tuple[str, ...]) -> List[int]:
+def find_first_vowel_in_hiatus(tokens: TokenArray) -> List[int]:
     """
     Returns list of indices for any token corresponding to a vowel before
     another vowel.
@@ -359,8 +428,17 @@ def tokens_have_same_tone(token_1: str, token_2: str) -> bool:
 Functions for performing edits to simulate transcription noise.
 """
 
-def swap_char(intab: str, outtab: str, tokens: Tuple[str, ...]) -> Tuple[str, ...]:
+def swap_char(intab: str, outtab: str, tokens: TokenArray) -> TokenArray:
     token_indices = find_tokens_w_char(intab)
+    if intab in tone:
+        edit_type = 'tone_change'
+    elif intab in consonants:
+        edit_type = 'consonant_change'
+    else:
+        edit_type = 'vowel_change'
+    valid_tokens = find_tokens_without_edit(tokens, edit_type)
+    token_indices = get_index_intersection(token_indices, valid_tokens)
+
     if not token_indices:
         return tokens
     
@@ -375,10 +453,20 @@ def swap_char(intab: str, outtab: str, tokens: Tuple[str, ...]) -> Tuple[str, ..
         # e.g. ɛ̀ɛ̌ > èě
         new_token = tokens[sampled_index].replace(intab, outtab)
     
-    return update_token(tokens, sampled_index, new_token)
 
-def centralize_interconsontal_vowel(tokens: Tuple[str, ...]) -> Tuple[str, ...]:
+    edit = Edit(
+        edit_type=edit_type,
+        token_index=sampled_index,
+        original_token=tokens[sampled_index],
+        new_token=new_token,
+    )
+    return tokens.replace_token(sampled_index, new_token, edit)
+
+def centralize_interconsontal_vowel(tokens: TokenArray) -> TokenArray:
     token_indices = find_interconsonantal_vowels(tokens)
+    valid_tokens = find_tokens_without_edit(tokens, 'vowel_change')
+    token_indices = get_index_intersection(token_indices, valid_tokens)
+
     if not token_indices:
         return tokens
 
@@ -392,34 +480,127 @@ def centralize_interconsontal_vowel(tokens: Tuple[str, ...]) -> Tuple[str, ...]:
             new_token = new_token.replace(v, 'ə')
             break
     
-    return update_token(tokens, sampled_index, new_token)
+    edit = Edit(
+        edit_type='vowel_change',
+        token_index=sampled_index,
+        original_token=tokens[sampled_index],
+        new_token=new_token,
+    )
+    return tokens.replace_token(sampled_index, new_token, edit)
 
-def delete_first_vowel_in_hiatus(tokens: Tuple[str, ...]) -> Tuple[str, ...]:
+def delete_first_vowel_in_hiatus(tokens: TokenArray) -> TokenArray:
     token_indices = find_first_vowel_in_hiatus(tokens)
+    valid_tokens = find_tokens_without_edit(tokens, 'vowel_change')
+    token_indices = get_index_intersection(token_indices, valid_tokens)
+
     if not token_indices:
         return tokens
     
     sampled_index = random.choice(token_indices)
-    # set to empty str
-    return update_token(tokens, sampled_index, '')
+    # set token to empty str
+    edit = Edit(
+        edit_type='vowel_change',
+        token_index=sampled_index,
+        original_token=tokens[sampled_index],
+        new_token='',
+    )
+    return tokens.replace_token(sampled_index, '', edit)
 
-def update_token(tokens, sampled_index, new_token):
-    preceding_tokens = list(tokens[:sampled_index]) if sampled_index > 0 else []
-    following_tokens = list(tokens[sampled_index+1:]) if sampled_index < len(tokens) else []
-    return tuple(preceding_tokens + [new_token] + following_tokens)
+def delete_interconsonatal_schwa(tokens: TokenArray) -> TokenArray:
+    """
+    Deletes schwa in interconsonantal position. Only change if the
+    vowel is originally a schwa, not if it was changed to schwa by
+    another rule.
+    """
+    token_indices = find_interconsonantal_vowels(tokens)
+    schwa_indices = find_tokens_w_char(tokens, 'ə')
+    unchanged_vowel_indices = find_tokens_without_edit(tokens, 'vowel_change')
+    token_indices = get_index_intersection(
+        token_indices,
+        schwa_indices,
+        unchanged_vowel_indices,
+    )
+    if not token_indices:
+        return tokens
+    
+    sampled_index = random.choice(token_indices)
+    # set token to empty str
+    edit = Edit(
+        edit_type='vowel_change',
+        token_index=sampled_index,
+        original_token=tokens[sampled_index],
+        new_token='',
+    )
+    return tokens.replace_token(sampled_index, '', edit)
+
+def add_intonational_rise(tokens: TokenArray) -> TokenArray:
+    """
+    Intonational rise is often transcribed as a rising tone on the vowel before a pause,
+    where the vowel is written as a geminate.
+    """
+    token_indices = [i for i, token in enumerate(tokens) if token_is_vowel(token)]
+    valid_tokens = find_tokens_without_edit(tokens, 'epenthesis')
+    token_indices = get_index_intersection(token_indices, valid_tokens)
+
+    if not token_indices:
+        return tokens
+
+    sampled_index = random.choice(token_indices)
+    vowel = tokens[sampled_index][0]
+    assert vowel in vowels, f"Expected vowel token, got {tokens[sampled_index]}"
+    new_token = tokens[sampled_index] + vowel + rise_tone
+
+    edit = Edit(
+        edit_type='epenthesis',
+        token_index=sampled_index,
+        original_token=tokens[sampled_index],
+        new_token=new_token,
+    )
+    return tokens.replace_token(sampled_index, new_token, edit)
 
 """
 Create list of curried functions for each possible type of edit.
 """
 
+emptyset = '\u2205' # ∅ used to represent empty string in edit descriptions
+
 edit_list = [
-    centralize_interconsontal_vowel,
-    delete_first_vowel_in_hiatus,
+    EditFunction(
+        'V > ə / C_C',
+        centralize_interconsontal_vowel
+    ),
+    EditFunction(
+        'V1V2 > V2',
+        delete_first_vowel_in_hiatus
+    ),
+    EditFunction(
+        f'ə > {emptyset} / C_C',
+        delete_interconsonatal_schwa
+    ),
+    EditFunction(
+        'V > VV̌',
+        add_intonational_rise
+    )
 ]
 
-# TODO add all non-vacuous changes to list
 for charset in interchange_sets:
-    ...
+    for char in charset:
+        for other_char in charset:
+            if char != other_char:
+                edit_callable = lambda tokens: swap_char(char, other_char, tokens)
+                edit_name = f'{char} > {other_char}'
+                if other_char == '':
+                    edit_name = f'{char} > {emptyset}'
+                edit_list.append(EditFunction(edit_name, edit_callable))
 
-for intab, outtab in unidirectional_edits.items():
-    ...
+for intab_set, outtab_set in unidirectional_edits.items():
+    # don't strictly need to iterate through intabs since every intab
+    # is a single charm, but this is robust to the possibility of multichar
+    # intabs in the future
+    for intab in intab_set:
+        for outtab in outtab_set:
+            edit_callable = lambda tokens: swap_char(intab, outtab, tokens)
+            edit_name = f'{intab} > {outtab}'
+            if outtab == '':
+                edit_name = f'{intab} > {emptyset}'
+            edit_list.append(EditFunction(edit_name, edit_callable))
