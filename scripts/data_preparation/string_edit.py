@@ -558,6 +558,25 @@ def add_intonational_rise(tokens: TokenArray) -> TokenArray:
     )
     return tokens.replace_token(sampled_index, new_token, edit)
 
+def delete_space(tokens: TokenArray) -> TokenArray:
+    """
+    Deletes space between a verbal aux and stem, simulating a common transcription error.
+    """
+    token_indices = find_tokens_w_char(tokens, ' ')
+
+    if not token_indices:
+        return tokens
+    
+    sampled_index = random.choice(token_indices)
+    # set token to empty str
+    edit = Edit(
+        edit_type='deletion',
+        token_index=sampled_index,
+        original_token=tokens[sampled_index],
+        new_token='',
+    )
+    return tokens.replace_token(sampled_index, '', edit)
+
 """
 Create list of curried functions for each possible type of edit.
 """
@@ -580,6 +599,10 @@ edit_list = [
     EditFunction(
         'V > VV̌',
         add_intonational_rise
+    ),
+    EditFunction(
+        'delete space',
+        delete_space
     )
 ]
 
