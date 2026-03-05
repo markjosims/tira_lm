@@ -5,6 +5,15 @@ import pandas as pd
 dataset_uri = 'tira-parsing/tira-parsing'
 sentences_list = 'data/sentences.csv'
 
+def preprocess_sentence(sentence: str):
+    """
+    Remove leading and trailing whitespace, commas and newlines.
+    """
+    sentence = sentence.strip()
+    sentence = sentence.replace('\n', ' ')
+    sentence = sentence.replace(',', '')
+    return sentence
+
 def main():
     print(f'Loading dataset from: {dataset_uri}')
     ds = load_dataset(dataset_uri)
@@ -13,8 +22,8 @@ def main():
         print(f'Processing split: {split}')
 
         def make_sentence_list(example, i):
-            sentence = example['orig_text']
-            translation = example['translation']
+            sentence = preprocess_sentence(example['orig_text'])
+            translation = preprocess_sentence(example['translation'])
             rows.append({
                 'sentence': sentence,
                 'translation': translation,
