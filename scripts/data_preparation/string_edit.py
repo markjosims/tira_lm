@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Tuple
+from typing import Dict, List, Literal, Tuple, Callable
 import re
 from numba import jit
 import numpy as np
@@ -6,6 +6,10 @@ import random
 import os
 from dataclasses import dataclass, field
 from collections import defaultdict
+import logging
+
+log_level = os.environ.get('PYTHON_LOG_LEVEL', 'DEBUG')
+logging.basicConfig(level=log_level)
 
 seed = os.environ.get('RANDOM_SEED', 1337)
 random.seed(seed)
@@ -233,10 +237,16 @@ segment_w_tone = rf'[{consonants+vowels}][{tone}]'
 @dataclass
 class TokenArray:
     data: Tuple[str, ...]
-    token_history: Dict[int, List['Edit']] = field(default_factory=defaultdict(list))
+    token_history: Dict[int, Tuple['Edit', ...]] = field(default_factory=lambda: defaultdict(tuple))
 
     def __getitem__(self, index):
         return self.data[index]
+    
+    def __str__(self):
+        return ''.join(self.data)
+    
+    def __len__(self):
+        return len(self.data)
 
     def replace_token(self, index: int, new_token: str, edit: 'Edit') -> 'TokenArray':
         """
@@ -247,13 +257,44 @@ class TokenArray:
         following_tokens = list(self.data[index+1:]) if index < len(self.data) else []
         data = tuple(preceding_tokens + [new_token] + following_tokens)
         token_history = self.token_history.copy()
-        token_history[index].append(edit)
+        token_history[index]+=(edit,)
         return TokenArray(data=data, token_history=token_history)
+
+    @classmethod
+    def tokenize_string(cls, untokenized_str: str) -> 'TokenArray':
+        """
+        Tokenizes a string into a tuple where each member is a single segment
+        or segment + tone. Returns tuple rather than list as safeguard against
+        side-effects.
+
+        Arguments:
+            untokenized_str:    Tira word to be tokenized
+        Returns:
+            tokens:             Tuple of segments w/ tone (if applicable)
+
+        """
+        i = 0
+        tokens = []
+        while i < len(untokenized_str):
+            suffix = untokenized_str[i:]
+            for multichar_regex in [consonant_regex, segment_w_tone]:
+                match = re.match(multichar_regex, suffix)
+                if match is not None:
+                    i+=match.end()
+                    tokens.append(match.group())
+                    break
+            else:
+                i+=1
+                tokens+=untokenized_str[0]
+        return cls(data=tuple(tokens))
 
 @dataclass
 class EditFunction:
     name: str
-    edit_function: callable
+    edit_function: Callable[[TokenArray], TokenArray]
+
+    def __call__(self, tokens: TokenArray) -> TokenArray:
+        return self.edit_function(tokens)
 
 @dataclass
 class Edit:
@@ -261,33 +302,6 @@ class Edit:
     token_index: int
     original_token: str
     new_token: str
-
-def tokenize_string(untokenized_str: str) -> TokenArray:
-    """
-    Tokenizes a string into a tuple where each member is a single segment
-    or segment + tone. Returns tuple rather than list as safeguard against
-    side-effects.
-
-    Arguments:
-        untokenized_str:    Tira word to be tokenized
-    Returns:
-        tokens:             Tuple of segments w/ tone (if applicable)
-
-    """
-    i = 0
-    tokens = []
-    while i < len(untokenized_str):
-        suffix = untokenized_str[i:]
-        for multichar_regex in [consonant_regex, segment_w_tone]:
-            match = re.match(multichar_regex, suffix)
-            if match is not None:
-                i+=match.end
-                tokens+=match.group()
-                break
-        else:
-            i+=1
-            tokens+=untokenized_str[0]
-    return tuple(tokens)
 
 """
 Helper functions for matching tokens based on some condition
@@ -368,7 +382,7 @@ def find_interconsonantal_vowels(tokens: TokenArray) -> List[int]:
 
     for i, curr_token in enumerate(
         tokens[1:-1],
-        stat=1
+        start=1
     ):
         prev_token = tokens[i-1]
         next_token = tokens[i+1]
@@ -429,7 +443,7 @@ Functions for performing edits to simulate transcription noise.
 """
 
 def swap_char(intab: str, outtab: str, tokens: TokenArray) -> TokenArray:
-    token_indices = find_tokens_w_char(intab)
+    token_indices = find_tokens_w_char(tokens, intab)
     if intab in tone:
         edit_type = 'tone_change'
     elif intab in consonants:
@@ -506,7 +520,7 @@ def delete_first_vowel_in_hiatus(tokens: TokenArray) -> TokenArray:
     )
     return tokens.replace_token(sampled_index, '', edit)
 
-def delete_interconsonatal_schwa(tokens: TokenArray) -> TokenArray:
+def delete_interconsonantal_schwa(tokens: TokenArray) -> TokenArray:
     """
     Deletes schwa in interconsonantal position. Only change if the
     vowel is originally a schwa, not if it was changed to schwa by
@@ -539,24 +553,24 @@ def add_intonational_rise(tokens: TokenArray) -> TokenArray:
     where the vowel is written as a geminate.
     """
     token_indices = [i for i, token in enumerate(tokens) if token_is_vowel(token)]
-    valid_tokens = find_tokens_without_edit(tokens, 'epenthesis')
-    token_indices = get_index_intersection(token_indices, valid_tokens)
+    # intonational rise can only occur on last syllable
+    last_vowel_index = token_indices[-1]
+    tokens_without_epenthesis = find_tokens_without_edit(tokens, edit_type='epenthesis')
 
-    if not token_indices:
+    if last_vowel_index not in tokens_without_epenthesis:
         return tokens
 
-    sampled_index = random.choice(token_indices)
-    vowel = tokens[sampled_index][0]
-    assert vowel in vowels, f"Expected vowel token, got {tokens[sampled_index]}"
-    new_token = tokens[sampled_index] + vowel + rise_tone
+    vowel = tokens[last_vowel_index][0]
+    assert vowel in vowels, f"Expected vowel token, got {tokens[last_vowel_index]}"
+    new_token = tokens[last_vowel_index] + vowel + rise_tone
 
     edit = Edit(
         edit_type='epenthesis',
-        token_index=sampled_index,
-        original_token=tokens[sampled_index],
+        token_index=last_vowel_index,
+        original_token=tokens[last_vowel_index],
         new_token=new_token,
     )
-    return tokens.replace_token(sampled_index, new_token, edit)
+    return tokens.replace_token(last_vowel_index, new_token, edit)
 
 def delete_space(tokens: TokenArray) -> TokenArray:
     """
@@ -594,7 +608,7 @@ edit_list = [
     ),
     EditFunction(
         f'ə > {emptyset} / C_C',
-        delete_interconsonatal_schwa
+        delete_interconsonantal_schwa
     ),
     EditFunction(
         'V > VV̌',
@@ -627,3 +641,37 @@ for intab_set, outtab_set in unidirectional_edits.items():
             if outtab == '':
                 edit_name = f'{intab} > {emptyset}'
             edit_list.append(EditFunction(edit_name, edit_callable))
+
+def apply_k_edits(tira_word: str, k: int) -> str:
+    """
+    Randomly select $k$ edit functions from `edit_list`
+    and apply to the string `tira_word`. Only apply
+    non-vacuous edits: If a function returns the same word,
+    pick a different function.
+    """
+    word_tokens = TokenArray.tokenize_string(tira_word)
+    prev_word_tokens = word_tokens
+    for i in range(k):
+        remaining_edit_functs = edit_list[:]
+
+        logging.debug(f"Applying {i}^th edit out of k={k}...")
+        no_edit_made = True
+        while no_edit_made:
+            edit_funct = random.choice(remaining_edit_functs)
+            logging.debug(f"Applying edit {edit_funct.name} to string {prev_word_tokens}")
+            word_tokens = edit_funct(prev_word_tokens)
+
+            no_edit_made = str(word_tokens) == str(prev_word_tokens)
+            if no_edit_made:
+                logging.debug("Function was vacuous/ineffectual, reattempting...")
+                if 'ᴐ' in edit_funct.name:
+                    breakpoint()
+
+                remaining_edit_functs.remove(edit_funct)
+        prev_word_tokens = word_tokens
+    return word_tokens
+
+if __name__ == '__main__':
+    tira_word = 'və̀lɛ̀ðᴐ́'
+    tokens = TokenArray.tokenize_string(tira_word)
+    apply_k_edits(tira_word=tira_word, k=10)
