@@ -1,0 +1,17 @@
+data:
+- name: "'X see Y' frame"
+  sentence: "{word_nom} {cl}àŋú {word_acc}"
+  description: >
+    Two nouns, the noun in question should have a distinct accusative form.
+- name: "Intransitive verb"
+  sentence: "{subject} {cl}{verb} {adverb}"
+  description: >
+    A single noun with an intransitive verb.
+    Intended to test verbs of different TAM values.
+    Adverb can be inserted to add redundancy given TAM value.
+- name: "Transitive verb"
+  sentence: "{subject} {cl}{verb} {object} {adverb}"
+  description: >
+    Transitive sentence with subject and object nouns.
+    Intended to test verbs of different TAM values.
+    Adverb can be inserted to add redundancy given TAM value.
