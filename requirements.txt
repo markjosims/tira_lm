@@ -7,3 +7,4 @@ torch
 hydra-core
 wandb
 omegaconf
+levenshtein
