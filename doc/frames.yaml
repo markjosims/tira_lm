@@ -10,9 +10,9 @@ data:
     Intended to test verbs of different TAM values.
     Adverb can be inserted to add redundancy given TAM value.
   example: >
-    A. àpɾí jàbr̀t̪ᴐ́ "The boy jumped"
-    B. àpɾí jábə̀rtà "The boy will jump" (canonical form would be "àpɾí já ábr̀t̪à")
-    X. àpɾí jábə̀rtò "The boy jumped" (X is misspelled, A is canonical form)
+    A. àpɾí **jàbr̀t̪ᴐ́** "The boy jumped"
+    B. àpɾí *jábə̀rtà* "The boy will jump" (canonical form would be "àpɾí já ábr̀t̪à")
+    X. àpɾí *jábə̀rtò* "The boy jumped" (X is misspelled, A is canonical form)
 
     Note that LevenshteinDistance(jàbr̀t̪ᴐ́, jábə̀rtò) = 5
     and LevenshteinDistance(jábə̀rtà, jábə̀rtò) = 1
