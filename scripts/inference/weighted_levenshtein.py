@@ -1,4 +1,4 @@
-from ..data_preparation.abx_words import vowels, tone, dental_bridge
+from scripts.data_preparation.abx_words import vowels, tone, dental_bridge
 from numba import jit
 import numpy as np
 from typing import List, Tuple
@@ -12,7 +12,7 @@ Functions for weighted Levenshtein edit distance, where edit
 weights are expert-coded.
 """
 
-abx_wordlist = 'data/abx_wordlist.csv'
+abx_wordlist = 'data/abx_words.csv'
 
 def get_edit_costs() -> np.array:
 
@@ -202,6 +202,11 @@ def levenshtein(string_a: str, string_b: str) -> int:
 
 def main():
     abx_df = pd.read_csv(abx_wordlist)
+
+    # for now, randomly sample 1k words
+    num_sample=1_000
+    abx_df = abx_df.sample(num_sample)
+
     substitution_costs, insertion_costs, deletion_costs = get_edit_costs()
 
     a_x_dist_pred = abx_df.progress_apply(
@@ -211,7 +216,8 @@ def main():
             substitution_costs,
             insertion_costs,
             deletion_costs,
-        )
+        ),
+        axis=1,
     )
     b_x_dist_pred = abx_df.progress_apply(
         lambda row: weighted_levenshtein(
@@ -220,10 +226,14 @@ def main():
             substitution_costs,
             insertion_costs,
             deletion_costs,
-        )
+        ),
+        axis=1,
     )
     a_x_closer = a_x_dist_pred < b_x_dist_pred
     hits = a_x_closer.sum()
     total = len(abx_df)
     accuracy = hits / total
     print(f'ABX accuracy: {accuracy:.4f} ({hits}/{total})')
+
+if __name__ == '__main__':
+    main()
