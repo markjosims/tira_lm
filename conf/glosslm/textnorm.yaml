@@ -6,10 +6,9 @@ data:
   hf_uri: "tira-parsing/fst-output"
   columns:
     input_column: "orig_text"
-    target_column: "FST_gloss"
+    target_column: "FST_text"
     translation_column: "translation"
   task:
-    format: "prompt_template"
     prompt: |
       prompt = f"""Provide the glosses for the following transcription in Tira.
 
@@ -17,7 +16,7 @@ data:
       Transcription segmented: False
       Translation in English: {translation}
 
-      Glosses:"""
+      Glosses: """
 
 training:
   output_dir: "./outputs"
@@ -27,9 +26,7 @@ training:
   epochs: 10
   bf16: true
   save_total_limit: 2
-  weight_decay: 0.01
-  logging_steps: 10
 
 wandb:
   project: "Tira-LM"
-  run_name: "byt5-base-pretrain"
+  run_name: "glosslm-textnorm"

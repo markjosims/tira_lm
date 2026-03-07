@@ -53,13 +53,18 @@ def compute_metrics(tokenizer, eval_preds):
         "chrf": chrf_results["score"],
     }
 
-def preprocess_prompt(examples, prompt_template, tokenizer, max_length):
-    inputs_w_prompt = [
-        prompt_template.format(
-            input_text=text,
-            translation=translation,
-        ) for text, translation in zip(examples['input_text'], examples['translation'])
-    ]
+def preprocess_prompt(
+        examples,
+        prompt_template,
+        expected_fields,
+        tokenizer,
+        max_length
+):
+    inputs_w_prompt = []
+    for example in examples:
+        prompt_fields = {field: example[field] for field in expected_fields}
+        prompt = prompt_template.format(**prompt_fields)
+        inputs_w_prompt.append(prompt)
     model_inputs = tokenizer(inputs_w_prompt, max_length=max_length, truncation=True)
     labels = tokenizer(text_target=examples["output_text"], max_length=max_length, truncation=True)
     model_inputs["labels"] = labels["input_ids"]
@@ -84,7 +89,13 @@ def main(cfg: DictConfig):
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.name)
 
     if cfg.data.task.format == "prompt_template":
-        preprocess_fn = lambda examples: preprocess_prompt(examples, cfg.data.task.prompt, tokenizer, cfg.model.max_length)
+        preprocess_fn = lambda examples: preprocess_prompt(
+            examples=examples,
+            prompt=cfg.data.task.prompt,
+            expected_fields=cfg.data.task.expected_fields,
+            tokenizer=tokenizer,
+            max_length=cfg.model.max_length,
+        )
     elif cfg.data.task.format == "mbart":
         tokenizer.src_lang = cfg.data.task.src_lang_code
         tokenizer.tgt_lang = cfg.data.task.tgt_lang_code

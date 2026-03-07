@@ -1,0 +1,36 @@
+model:
+  name: "lecslab/glosslm"
+  max_length: 512
+
+data:
+  hf_uri: "tira-parsing/fst-output"
+  columns:
+    input_column: "orig_text"
+    target_column: "FST_gloss"
+    translation_column: "translation"
+  task:
+    format: "prompt_template"
+    expected_fields: ["input_text", "translation"]
+    prompt: |
+      prompt = f"""Provide the glosses for the following transcription in Tira.
+
+      Transcription in Tira: {input_text}
+      Transcription segmented: False
+      Translation in English: {translation}
+
+      Glosses:"""
+
+training:
+  output_dir: "./outputs"
+  learning_rate: 3e-4
+  batch_size: 4
+  grad_acc: 8
+  epochs: 10
+  bf16: true
+  save_total_limit: 2
+  weight_decay: 0.01
+  logging_steps: 10
+
+wandb:
+  project: "Tira-LM"
+  run_name: "glosslm-glossing"
