@@ -1,0 +1,17 @@
+model:
+  name: "facebook/mbart-large-50-many-to-many-mmt"
+  max_length: 128
+
+data:
+  path: "data/embedding_eval.csv"
+  task:
+    format: "ABX"
+    src_lang_code: "sw_KE"
+    tgt_lang_code: "en_XX"
+
+inference:
+  batch_size: 256
+
+wandb:
+  project: "Tira-LM"
+  run_name: "mbart-embedding-comparison"
