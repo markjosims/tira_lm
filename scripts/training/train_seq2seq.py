@@ -12,6 +12,7 @@ from transformers import (
 )
 import numpy as np
 import evaluate
+import re
 
 # Load metrics
 wer_metric = evaluate.load("wer")
@@ -29,8 +30,23 @@ def compute_metrics(tokenizer, eval_preds):
     preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
 
     # Decode predictions and labels
-    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    # BUG: `skip_special_tokens=True` causes an infinite loop
+    # Remove special tokens manually
+    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=False)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=False)
+
+    preds_nosymbols = []
+    labels_nosymbols = []
+
+    for i, (pred, label) in enumerate(zip(decoded_preds, decoded_labels)):
+        for special_token in tokenizer.all_special_tokens:
+            pred = pred.replace(special_token, '')
+            label = label.replace(special_token, '')
+        preds_nosymbols.append(pred)
+        labels_nosymbols.append(label)
+
+    decoded_preds = preds_nosymbols
+    decoded_labels = labels_nosymbols
 
     # Simple post-processing: strip whitespace
     decoded_preds = [pred.strip() for pred in decoded_preds]
@@ -47,13 +63,42 @@ def compute_metrics(tokenizer, eval_preds):
     
     wer = wer_metric.compute(predictions=decoded_preds, references=decoded_labels)
     cer = cer_metric.compute(predictions=decoded_preds, references=decoded_labels)
-    bleu = bleu_metric.compute(predictions=decoded_preds, references=decoded_labels)
+    bleu_results = bleu_metric.compute(predictions=decoded_preds, references=decoded_labels)
 
     return {
         "wer": wer,
         "cer": cer,
         "chrf": chrf_results["score"],
+        "bleu": bleu_results["score"],
     }
+
+def filter_texts(example) -> str:
+    part_regex = re.compile('parts? of', re.IGNORECASE)
+    return not part_regex.match(example['input_text'])
+
+def preprocess_transcription(input_text: str) -> str:
+    input_text = input_text.strip()
+    return input_text
+
+def preprocess_translation(output_text: str) -> str:
+    output_text = output_text.strip().lower()
+    parenthetical_rgx = r'\(.*?\)'
+    output_text = re.sub(parenthetical_rgx, '', output_text)
+
+    non_alphanum_rgx = r'[^A-Za-z0-9\s]'
+    output_text = re.sub(non_alphanum_rgx, '', output_text)
+    return output_text
+
+def preprocess_texts(examples):
+    examples['input_text'] = [
+        preprocess_transcription(text)
+        for text in examples['input_text']
+    ]
+    examples['output_text'] = [
+        preprocess_translation(text)
+        for text in examples['output_text']
+    ]
+    return examples
 
 def preprocess_prompt(
         examples,
@@ -62,9 +107,11 @@ def preprocess_prompt(
         tokenizer,
         max_length
 ):
+    examples = preprocess_texts(examples)
     inputs_w_prompt = []
-    for example in examples:
-        prompt_fields = {field: example[field] for field in expected_fields}
+    batch_size = len(examples[expected_fields[0]])
+    for i in range(batch_size):
+        prompt_fields = {field: examples[field][i] for field in expected_fields}
         prompt = prompt_template.format(**prompt_fields)
         inputs_w_prompt.append(prompt)
     model_inputs = tokenizer(inputs_w_prompt, max_length=max_length, truncation=True)
@@ -73,6 +120,7 @@ def preprocess_prompt(
     return model_inputs
 
 def preprocess_mbart(examples, tokenizer, max_length):
+    examples = preprocess_texts(examples)
     input_strs = examples['input_text']
     label_strs = examples['output_text']
     model_inputs = tokenizer(
@@ -97,7 +145,7 @@ def main(cfg: DictConfig):
     if cfg.data.task.format == "prompt_template":
         preprocess_fn = lambda examples: preprocess_prompt(
             examples=examples,
-            prompt=cfg.data.task.prompt,
+            prompt_template=cfg.data.task.prompt,
             expected_fields=cfg.data.task.expected_fields,
             tokenizer=tokenizer,
             max_length=cfg.model.max_length,
@@ -116,7 +164,8 @@ def main(cfg: DictConfig):
         cfg.data.columns.input_column: "input_text",
         cfg.data.columns.target_column: "output_text"
     })
-    
+    dataset = dataset.filter(filter_texts)
+
     tokenized_dataset = dataset.map(
         lambda x: preprocess_fn(x),
         batched=True
