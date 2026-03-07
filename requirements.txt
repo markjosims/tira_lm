@@ -10,3 +10,6 @@ omegaconf
 levenshtein
 jiwer
 evaluate
+sacrebleu
+tiktoken
+sentencepiece
