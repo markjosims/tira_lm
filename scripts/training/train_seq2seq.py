@@ -72,11 +72,15 @@ def preprocess_prompt(
 
 def preprocess_mbart(examples, tokenizer, max_length):
     input_strs = examples['input_text']
-    model_inputs = tokenizer(input_strs, max_length=max_length, padding="max_length", truncation=True)
-    with tokenizer.as_target_tokenizer():
-        label_strs = examples['output_text']
-        labels = tokenizer(label_strs, max_length=max_length, padding="max_length", truncation=True)
-    model_inputs["labels"] = labels["input_ids"]
+    label_strs = examples['output_text']
+    model_inputs = tokenizer(
+        input_strs,
+        text_target=label_strs,
+        max_length=max_length,
+        padding="max_length",
+        truncation=True
+    )
+
     return model_inputs
 
 @hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="translation")
