@@ -8,3 +8,5 @@ hydra-core
 wandb
 omegaconf
 levenshtein
+jiwer
+evaluate
