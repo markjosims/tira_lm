@@ -1,4 +1,4 @@
-from scripts.data_preparation.abx_words import vowels, tone, dental_bridge
+from scripts.abx_data.abx_word_generator import vowels, tone, dental_bridge
 from numba import jit
 import numpy as np
 from typing import List, Tuple
