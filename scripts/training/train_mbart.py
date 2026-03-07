@@ -1,39 +1,42 @@
 
+from omegaconf import DictConfig
 import torch
 from transformers import (
     AutoModelForSeq2SeqLM, AutoTokenizer, Seq2SeqTrainingArguments, Seq2SeqTrainer, DataCollatorForSeq2Seq
 )
-from datasets import load_from_disk
+from datasets import load_dataset
+import hydra
 from evaluate import load
-from constants import (
-    MODEL_CHECKPOINT, TRAIN_DATA_PATH, VAL_DATA_PATH,
-    ALLOPHANT_TRAIN_PATH, ALLOPHANT_VAL_PATH, MODEL_DIR
-)
 from jiwer import wer, cer
 import os
 from argparse import ArgumentParser
 bleu = load("sacrebleu")
 
 
-def parse_args():
-    parser = ArgumentParser(description="Train mBART Translation Model on Tira Dataset")
-    parser.add_argument(
-        "--print-outputs", '-p',
-        action="store_true",
-        help="Print sample model outputs during evaluation",
-    )
-    parser.add_argument(
-        '--dataset', '-d',
-        type=str,
-        choices=['elan', 'allophant', 'allophant_condensed'],
-        default='elan',
-    )
-    parser.add_argument(
-        '--condense_allophant',
-        action='store_true',
-        help='Whether to condense phoneme strings in allophant dataset by removing spaces',
-    )
-    return parser.parse_args()
+def preprocess_function(examples):
+    input_strs = examples['sentence']
+    model_inputs = tokenizer(input_strs, max_length=128, padding="max_length", truncation=True)
+    with tokenizer.as_target_tokenizer():
+        label_strs = examples['translation']
+        labels = tokenizer(label_strs, max_length=128, padding="max_length", truncation=True)
+    model_inputs["labels"] = labels["input_ids"]
+    return model_inputs
+
+@hydra.main(version_base="1.3", config_path="../../conf", config_name="config")
+def main(cfg: DictConfig):
+    # 1. Setup WandB
+    os.environ["WANDB_PROJECT"] = cfg.wandb.project
+    
+    # 2. Load Model & Tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(cfg.model.name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.name)
+
+    # 3. Load Data
+    dataset = load_dataset(cfg.data.hf_uri)
+    dataset = dataset.rename_columns({
+        cfg.data.columns.input_column: "input_text",
+        cfg.data.columns.target_column: "output_text"
+    })
 
 def main():
     print("="*40)
@@ -55,22 +58,6 @@ def main():
         print("FP16 Mixed Precision: ENABLED (Crucial for VRAM savings)")
 
     print("\n📂 Loading tokenized data from disk...")
-    if not os.path.exists(TRAIN_DATA_PATH):
-        print(f"❌ Error: Data folders not found. Run prepare_mt_data.py first!")
-        return
-
-    if args.dataset == "elan":
-        train_dataset = load_from_disk(TRAIN_DATA_PATH)
-        val_dataset = load_from_disk(VAL_DATA_PATH)
-    elif args.dataset == "allophant":
-        train_dataset = load_from_disk(ALLOPHANT_TRAIN_PATH)
-        val_dataset = load_from_disk(ALLOPHANT_VAL_PATH)
-    elif args.dataset == "allophant_condensed":
-        train_dataset = load_from_disk(ALLOPHANT_TRAIN_PATH+"_condensed_inputs")
-        val_dataset = load_from_disk(ALLOPHANT_VAL_PATH+"_condensed_inputs")
-    else:
-        print(f"❌ Error: Unknown dataset choice '{args.dataset}'")
-        return
 
     print(f"\n⬇️  Loading base mBART model: {MODEL_CHECKPOINT}...")
     model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_CHECKPOINT)

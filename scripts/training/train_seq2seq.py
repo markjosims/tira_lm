@@ -53,7 +53,7 @@ def compute_metrics(tokenizer, eval_preds):
         "chrf": chrf_results["score"],
     }
 
-def preprocess_function(examples, prompt_template, tokenizer, max_length):
+def preprocess_prompt(examples, prompt_template, tokenizer, max_length):
     inputs_w_prompt = [
         prompt_template.format(
             input_text=text,
@@ -65,7 +65,16 @@ def preprocess_function(examples, prompt_template, tokenizer, max_length):
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-@hydra.main(version_base="1.3", config_path="../conf", config_name="config")
+def preprocess_mbart(examples, tokenizer, max_length):
+    input_strs = examples['src_text']
+    model_inputs = tokenizer(input_strs, max_length=max_length, padding="max_length", truncation=True)
+    with tokenizer.as_target_tokenizer():
+        label_strs = examples['tgt_text']
+        labels = tokenizer(label_strs, max_length=max_length, padding="max_length", truncation=True)
+    model_inputs["labels"] = labels["input_ids"]
+    return model_inputs
+
+@hydra.main(version_base="1.3", config_path="../../conf/t5", config_name="config")
 def main(cfg: DictConfig):
     # 1. Setup WandB
     os.environ["WANDB_PROJECT"] = cfg.wandb.project
@@ -73,6 +82,16 @@ def main(cfg: DictConfig):
     # 2. Load Model & Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.name)
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.name)
+
+    if cfg.data.task.format == "prompt_template":
+        preprocess_fn = lambda examples: preprocess_prompt(examples, cfg.data.task.prompt, tokenizer, cfg.model.max_length)
+    elif cfg.data.task.format == "mbart":
+        tokenizer.src_lang = cfg.data.task.src_lang_code
+        tokenizer.tgt_lang = cfg.data.task.tgt_lang_code
+        preprocess_fn = lambda examples: preprocess_mbart(examples, tokenizer, cfg.model.max_length)
+    else:
+        raise ValueError(f"Unsupported task format: {cfg.data.task.format}")
+
 
     # 3. Load Data
     dataset = load_dataset(cfg.data.hf_uri)
@@ -82,7 +101,7 @@ def main(cfg: DictConfig):
     })
     
     tokenized_dataset = dataset.map(
-        lambda x: preprocess_function(x, cfg.data.task.prompt, tokenizer, cfg.model.max_length), 
+        lambda x: preprocess_fn(x),
         batched=True
     )
 
@@ -93,10 +112,10 @@ def main(cfg: DictConfig):
         per_device_train_batch_size=cfg.training.batch_size,
         gradient_accumulation_steps=cfg.training.grad_acc,
         num_train_epochs=cfg.training.epochs,
-        weight_decay=0.01,
+        weight_decay=cfg.training.weight_decay,
         predict_with_generate=True,
         bf16=cfg.training.bf16,
-        logging_steps=10,
+        logging_steps=cfg.training.logging_steps,
         eval_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=cfg.training.save_total_limit,

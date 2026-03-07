@@ -9,6 +9,7 @@ data:
     target_column: "FST_gloss"
     translation_column: "translation"
   task:
+    format: "prompt_template"
     prompt: |
       prompt = f"""Provide the glosses for the following transcription in Tira.
 
@@ -26,6 +27,8 @@ training:
   epochs: 10
   bf16: true
   save_total_limit: 2
+  weight_decay: 0.01
+  logging_steps: 10
 
 wandb:
   project: "Tira-LM"
