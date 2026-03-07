@@ -57,6 +57,7 @@ def preprocess_prompt(
         examples,
         prompt_template,
         expected_fields,
+        tgt_col,
         tokenizer,
         max_length
 ):
@@ -66,20 +67,20 @@ def preprocess_prompt(
         prompt = prompt_template.format(**prompt_fields)
         inputs_w_prompt.append(prompt)
     model_inputs = tokenizer(inputs_w_prompt, max_length=max_length, truncation=True)
-    labels = tokenizer(text_target=examples["output_text"], max_length=max_length, truncation=True)
+    labels = tokenizer(text_target=examples[tgt_col], max_length=max_length, truncation=True)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-def preprocess_mbart(examples, tokenizer, max_length):
-    input_strs = examples['src_text']
+def preprocess_mbart(examples, tokenizer, src_col, tgt_col, max_length):
+    input_strs = examples[src_col]
     model_inputs = tokenizer(input_strs, max_length=max_length, padding="max_length", truncation=True)
     with tokenizer.as_target_tokenizer():
-        label_strs = examples['tgt_text']
+        label_strs = examples[tgt_col]
         labels = tokenizer(label_strs, max_length=max_length, padding="max_length", truncation=True)
     model_inputs["labels"] = labels["input_ids"]
     return model_inputs
 
-@hydra.main(version_base="1.3", config_path="../../conf/t5", config_name="config")
+@hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="translation")
 def main(cfg: DictConfig):
     # 1. Setup WandB
     os.environ["WANDB_PROJECT"] = cfg.wandb.project
