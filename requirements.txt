@@ -13,3 +13,4 @@ evaluate
 sacrebleu
 tiktoken
 sentencepiece
+accelerate
