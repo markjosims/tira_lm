@@ -1,124 +1,700 @@
 """
 Loads sentence frames from a YAML file and ABX words from a CSV file,
-and generates sentences by filling the frames with the ABX words.
+and creates a list of frames for each unique seed word combination
+that is eligible for the given frame.
 """
+
+from typing import (
+    Any, Dict, List, Tuple,
+    NamedTuple, Optional
+)
 
 import yaml
 import pandas as pd
 import argparse
+from scripts.constants import (
+    frame_config, frame_list, documentation_dir
+)
+from tqdm import tqdm
+from pathlib import Path
+import itertools
+from dataclasses import dataclass, field
+import re
 
-frames_file = 'doc/frames.yaml'
-
-"""
-ABX triplet selection functions.
-"""
-
-def get_all_abx_triples(
-        word_df: pd.DataFrame,
-        distance_matrix: np.ndarray
-):
+@dataclass
+class SourceWord:
     """
-    Calls `get_abx_triple` for each original word in `word_df` and concatenates
-    results into a single dataframe.
+    Attributes:
+        word:           string form of the word
+        index:          the index of the word in its source dataframe, used to look up features
+                        and metadata for the word
+        source:         name of the dataframe where the word was found, e.g. 'seed_words'
+        set_member_id:  an identifier for the set of words that this word belongs to, e.g.
+                        'nom', 'acc', 'IPFV.VENT' where the specific value is dependent on
+                        the set type of the frame. This is used to determine which words
     """
+    word: str
+    index: int
+    source: str
+    set_member_id: Optional[str] = None
 
-    # reset index so word_df indices correspond to distance matrix indices
-    word_df = word_df.reset_index(drop=True)
+    def __str__(self):
+        return self.word
 
-    abx_dfs = []
+class AbxSentenceTripletFilled(NamedTuple):
+    a_sentence: str
+    b_sentence: str
+    x_sentence: str
+    set_type: str
+    word_set: str
 
-    for word_a_index in tqdm(word_df.index, desc="Selecting ABX triplets for each original word"):
-        abx_df = get_abx_triple(word_a_index, word_df, distance_matrix)
-        abx_dfs.append(abx_df)
-    return pd.concat(abx_dfs, ignore_index=True)
+    def __dict__(self):
+        return {
+            'a_sentence': self.a_sentence,
+            'b_sentence': self.b_sentence,
+            'x_sentence': self.x_sentence,
+            'set_type': self.set_type,
+            'word_set': self.word_set,
+        }
 
-# TODO: the current script should just generate edited words
-# triple selection should be taken care of by `sentence_frame_builder.py`
-def get_abx_triple(
-        word_a_index: int,
-        word_df: pd.DataFrame,
-        distance_matrix: np.ndarray
-) -> pd.DataFrame:
-        """
-        For a given original word A, select one edited word B and one edited word X
-        such that Lev(A,X) > Lev(B,X) and A,X have the same features as each other, but different from B.
+@dataclass
+class AbxSentenceTriplet:
+    a_template: str
+    b_template: str
+    x_template: str
+    a_slots: Dict[str, SourceWord] = field(default_factory=dict)
+    b_slots: Dict[str, SourceWord] = field(default_factory=dict)
+    x_slots: Dict[str, SourceWord] = field(default_factory=dict)
+
+    set_type: str
+    word_set: str = ''
+
+    def items(self) -> List[Tuple[str, str, Dict[str, SourceWord]]]:
+        return [
+            ('a', self.a_template, self.a_slots),
+            ('b', self.b_template, self.b_slots),
+            ('x', self.x_template, self.x_slots),
+        ]
+
+    def copy(self) -> 'AbxSentenceTriplet':
+        return AbxSentenceTriplet(
+            a_template=self.a_template,
+            b_template=self.b_template,
+            x_template=self.x_template,
+            a_slots=self.a_slots.copy(),
+            b_slots=self.b_slots.copy(),
+            x_slots=self.x_slots.copy(),
+            set_type=self.set_type,
+            word_set=self.word_set,
+        )
     
-        Arguments:
-            word_a: original word A
-            word_df: dataframe containing all edited variants of the original words, with columns for features
-            distance_matrix: pairwise Levenshtein distance matrix for all edited variants of the original words
-        Returns:
-            abx_df: dataframe with one row containing the selected A,B,X triplet, with columns for the words and their features
-        """
+    def update_data(
+        self,
+        **data: Dict[str, Any]
+    ) -> 'AbxSentenceTriplet':
+        new_instance = self.copy()
+        for new_attr, value in data.items():
+            if new_attr in ['a_slots', 'b_slots', 'x_slots']:
+                # update the existing slots dict with the new values
+                current_slots = getattr(new_instance, new_attr)
+                current_slots.update(value)
+            else:
+                setattr(new_instance, new_attr, value)
+        return new_instance
 
-        word_a = word_df.loc[word_a_index, 'edited_word']
-        word_a_features = word_df.loc[word_a_index, 'features']
+    def fill_slots(self) -> AbxSentenceTripletFilled:
+        # fill the templates for sentences A, B, and X using the slot values
+        a_sentence = self.a_template.format(**{k: v.word for k, v in self.a_slots.items()})
+        b_sentence = self.b_template.format(**{k: v.word for k, v in self.b_slots.items()})
+        x_sentence = self.x_template.format(**{k: v.word for k, v in self.x_slots.items()})
 
-        word_b_candidate_mask = word_df['features'] != word_a_features
-        word_x_candidate_mask = (word_df['features'] == word_a_features)\
-            & (word_df.index != word_a_index)
+        for sentence in [a_sentence, b_sentence, x_sentence]:
+            assert '{' not in sentence and '}' not in sentence,\
+                f"Not all slots were filled in sentence: {sentence}. "\
+                f"Remaining slots: {[slot for slot in [self.a_slots, self.b_slots, self.x_slots] if slot]}"
+
+        return AbxSentenceTripletFilled(
+            a_sentence=a_sentence,
+            b_sentence=b_sentence,
+            x_sentence=x_sentence,
+            set_type=self.set_type,
+            word_set=self.word_set,
+        )
+
+def load_source_data(args: argparse.Namespace) -> Dict[str, pd.DataFrame]:
+    # load all csv files in documentation directory
+    source_word_data = {}
+    docs_dir = Path(args.docs_dir)
+    for csv_file in docs_dir.glob('*.csv'):
+        df = pd.read_csv(csv_file, index_col='index')
+        source_word_data[csv_file.stem] = df
+
+    return source_word_data
+
+def generate_abx_frames(
+        frame: Dict[str, Any],
+        source_word_data: Dict[str, pd.DataFrame]
+) -> List[Dict[str, Any]]:
+    """
+    For a given sentence frame, select all eligible seed words and generate sentences.
+    The frame config specifies constraints on how seed words can be selected. For example,
+    a constraint 'ab_not_equal' indicates that any word may fill the target slot so long as
+    the word is different for sentences A and B. The constraint 'ax_nom' and 'b_acc', on
+    the other hand, specifies that the words filling the target slot in sentences A and X
+    should both be nominative case forms of the same noun, whereas the word filling the target
+    slot in sentence B should be an accusative form of the same noun.
+
+    Arguments:
+        frame: a dictionary containing the sentence frame template strings
+            and a list of constraints for each arg of the template
+            which define the logic for how words may be combined to fill the template.
+        source_word_data: a dictionary containing dataframes of source words, including
+            the seed words and other words used to fill slots in sentence frames.
+    Returns:
+        frame_sentences: a list of dictionaries, each containing a generated sentence and its metadata
+    """
+    template_dict = frame['sentence_templates']
+
+    # if a 'generic' template is provided, use it for all three sentences
+    if 'generic' in template_dict:
+        assert len(template_dict) == 1,\
+            "If 'generic' template is provided, it should be the only template."
+        template_dict = {
+            'a': template_dict['generic'],
+            'b': template_dict['generic'],
+            'x': template_dict['generic'],
+        }
+
+    # initialize main data structure to hold generated sentences and metadata
+    main_template = AbxSentenceTriplet(
+        a_template=template_dict['a'],
+        b_template=template_dict['b'],
+        x_template=template_dict['x'],
+        set_type=frame['set_type'],
+    )
+
+    # first select $tgt words that satisfy the constraints for the frame
+    # start by filtering seed words that match the word set specified in the frame config
+    seed_words = source_word_data['abx_word_seeds']
+    set_type_mask = seed_words['set_type'] == frame['set_type']
+    eligible_seed_words = seed_words.loc[set_type_mask]
+    assert not eligible_seed_words.empty, f"No eligible seed words found for frame {frame['name']} with word set {frame['word_set']}"
+    
+    member_set_ids = eligible_seed_words['member_set_id'].unique().tolist()
+    constraints = frame['constraints']
+    target_constraints = constraints['$tgt']
+    valid_target_combinations = get_valid_target_combinations(
+        member_set_ids,
+        target_constraints,
+    )
+    sentences_with_targets = get_sentences_with_targets(
+        main_template,
+        eligible_seed_words,
+        valid_target_combinations,
+    )
+    filled_sentences = []
+    for sentence in sentences_with_targets:
+        filled_sentences.extend(fill_nontarget_slots(
+            sentence,
+            source_word_data,
+            constraints,
+        ))
+
+def get_sentences_with_targets(
+    main_template: AbxSentenceTriplet,
+    eligible_seed_words: pd.DataFrame,
+    valid_target_combinations: List[Tuple[str, str, str]],
+) -> List[AbxSentenceTriplet]:
+    """
+    populate the frame templates with the valid target combinations
+    there should be one set per value of 'word_set' in the seed words dataframe
+    """
+    sentences_with_targets = []
+    for word_set in eligible_seed_words['word_set'].unique():
+        word_set_mask = eligible_seed_words['word_set'] == word_set
+        word_set_seed_words = eligible_seed_words.loc[word_set_mask]
+        for a_id, b_id, x_id in valid_target_combinations:
+            # expect exactly one word for each member_set_id in the combination
+            slot2member_set_id = {
+                'a_slots': a_id,
+                'b_slots': b_id,
+                'x_slots': x_id,
+            }
+            slots = {}
+            for slot_name, set_member_id in slot2member_set_id.items():
+                word_mask = word_set_seed_words['member_set_id'] == set_member_id
+                words_for_slot = word_set_seed_words.loc[word_mask]
+                assert len(words_for_slot) == 1,\
+                    f"Expected exactly one word for member_set_id {set_member_id} in word set {word_set}, "\
+                    f"but found {len(words_for_slot)}. Words: {words_for_slot['word'].tolist()}"
+                word_for_slot = words_for_slot.iloc[0]
+                word_for_slot = SourceWord(
+                    word=word_for_slot['word'],
+                    index=word_for_slot.name,
+                    source='abx_word_seeds',
+                    set_member_id=set_member_id,
+                )
+                slots[slot_name] = {'$tgt': word_for_slot}
+            sentence_instance = main_template.update_data(word_set=word_set, **slots)
+            sentences_with_targets.append(sentence_instance)
+    return sentences_with_targets
+
+def fill_nontarget_slots(
+    sentence_instance: AbxSentenceTriplet,
+    source_word_data: Dict[str, pd.DataFrame],
+    constraint_config: Dict[str, List[str]],
+) -> List[AbxSentenceTripletFilled]:
+    """
+    For a given sentence instance with target slots filled, fill the non-target slots
+    according to the constraints specified in the frame config. Whereas target slots
+    are all taken from 'abx_word_seeds', non-target slots are filled based on the part
+    of speech specified in their key in the template.
+    
+    Like target words, non-target slots are selected based on various constraints specified
+    in the frame config. For example, if the constraint 'ab_not_equal' is specified for a
+    non-target slot, then any word from the respective dataframe may be selected to fill that
+    slot so long as it is different from the word filling the same slot in the other sentence.
+    If the constraint 'ax_nom' is specified for a non-target slot, then the word filling that
+    slot should be a nominative case form of the same noun as the word filling the same slot
+    in sentence X.
+
+    Arguments:
+        sentence_instance:  an instance of AbxSentenceTriplet with target slots filled.
+        source_word_data:   a dictionary containing dataframes of source words, including
+                            the seed words and other words used to fill slots in sentence
+                            frames.
+    Returns:
+        filled_sentences:   a list of instances of AbxSentenceTripletFilled with all slots
+                            filled and sentences generated.
+    """
+    brace_regex = r'\{([^}]+)\}'
+    unfilled_slots_by_sentence = [
+        re.findall(brace_regex, sentence_instance.a_template),
+        re.findall(brace_regex, sentence_instance.b_template),
+        re.findall(brace_regex, sentence_instance.x_template),
+    ]
+
+    # condense into one list since constraints will determine
+    # how slots are filled across sentences
+    all_unfilled_slots = set()
+    for slot_list in unfilled_slots_by_sentence:
+        all_unfilled_slots.update(slot_list)
+    
+    # for each unfilled slot, get the constraints that apply to that slot
+    # and fill the slot according to those constraints
+    
+    sentence_list = [sentence_instance]
+
+    if 'adverb' in all_unfilled_slots:
+        sentence_list = fill_adverb_slots(
+            sentence_list,
+            source_word_data,
+            constraint_config
+        )
+        all_unfilled_slots.remove('adverb')
+
+    if 'noun' in all_unfilled_slots:
+        sentence_list = fill_single_noun_slots(
+            sentence_list,
+            source_word_data,
+            constraint_config
+        )
+        all_unfilled_slots.remove('noun')
+
+    if 'noun.1' in all_unfilled_slots:
+        sentence_list = fill_double_noun_slots(
+            sentence_list,
+            source_word_data,
+            constraint_config,
+        )
+        all_unfilled_slots.remove('noun.1')
+        all_unfilled_slots.remove('noun.2')
+    
+    if 'class' in all_unfilled_slots:
+        sentence_list = fill_class_slots(
+            sentence_list,
+            source_word_data,
+            constraint_config
+        )
+        all_unfilled_slots.remove('class')
+
+    if 'adjective' in all_unfilled_slots:
+        sentence_list = fill_adjective_slots(
+            sentence_list,
+            source_word_data,
+            constraint_config
+        )
+        all_unfilled_slots.remove('adjective')
+
+    return [sentence.fill_slots() for sentence in sentence_list]
         
-        # iterate through all word_b candidates
-        # select all word_x candidates that satisfy Lev(A,X) > Lev(B,X)
-        # and append all candidates to dataframe
-        abx_rows = []
-        common_keys = ['root', 'gloss', 'part_of_speech']
-        for word_b_index, word_b_candidate in word_df.loc[word_b_candidate_mask].iterrows():
-            word_b = word_b_candidate['edited_word']
-            word_b_features = word_b_candidate['features']
+_cached_word_data = {}
 
-            common_data = {key: word_b_candidate[key] for key in common_keys}
+def _get_source_words_from_dataframe(word_data: pd.DataFrame) -> List[SourceWord]:
+    source_words = []
+    for index, row in word_data.iterrows():
+        source_word = SourceWord(
+            word=row['word'],
+            index=index,
+            source=word_data.name,
+            set_member_id=row.get('member_set_id', None),
+        )
+        source_words.append(source_word)
+    return source_words
 
-            for word_x_index, word_x_candidate in word_df.loc[word_x_candidate_mask].iterrows():
-                word_x = word_x_candidate['edited_word']
-                word_x_features = word_x_candidate['features']
-                a_x_distance = distance_matrix[word_a_index, word_x_index]
-                b_x_distance = distance_matrix[word_b_index, word_x_index]
-                if a_x_distance > b_x_distance:
-                    abx_rows.append({
-                        'word_a': word_a,
-                        'word_b': word_b,
-                        'word_x': word_x,
-                        'word_a_features': word_a_features,
-                        'word_b_features': word_b_features,
-                        'word_x_features': word_x_features,
-                        'a_x_distance': a_x_distance,
-                        'b_x_distance': b_x_distance,
-                        **common_data,
-                    })
-        abx_df = pd.DataFrame(abx_rows)
-        return abx_df
+def _get_feature2adverb(adverb_data: pd.DataFrame) -> Dict[str, SourceWord]:
+    # get dictionary mapping verb feature str to matching adverb
+    if 'feature2adverb' in _cached_word_data:
+        return _cached_word_data['feature2adverb']
+
+    feature2adverb = {}
+    for feature_str in adverb_data['constraint'].unique():
+        feature_mask = adverb_data['constraint'] == feature_str
+        assert feature_mask.sum() == 1,\
+            f"Expected exactly one adverb for constraint {feature_str}, but found {feature_mask.sum()}. Adverbs: {adverb_data.loc[feature_mask, 'word'].tolist()}"
+        feature2adverb[feature_str] = _get_source_words_from_dataframe(adverb_data.loc[feature_mask])[0]
+    _cached_word_data['feature2adverb'] = feature2adverb
+    return feature2adverb
+
+def fill_adverb_slots(
+    sentence_list: List[AbxSentenceTriplet],
+    source_word_data: Dict[str, pd.DataFrame],
+    constraint_config: Dict[str, List[str]],
+) -> List[AbxSentenceTriplet]:
+    adverb_constraints = constraint_config.get('adverb', [])
+    adverb_constraints = set(adverb_constraints)
+    # currently only supported behavior for adverbs is to match the aspect
+    # of the target verb
+    assert adverb_constraints == {'match:aspect'}
+    adverb_data = source_word_data['adverb']
+
+    feature2adverb = _get_feature2adverb(adverb_data)
+    new_sentence_instances = []
+
+    # for each sentence triplet, get the aspect of the target verb and select the adverb that
+    # matches that aspect, then update the slots
+    for sentence in sentence_list:
+        new_slot_data = {}
+        for sentence_name, sentence, slots in sentence.items():
+            target_word = slots.get('$tgt')
+            target_word_features = target_word.set_member_id.split('.')
+            target_aspect = target_word_features[0]
+            adverb_for_aspect = feature2adverb.get(target_aspect)
+            new_slot_data[sentence_name + '_slots'] = {'adverb': adverb_for_aspect}
+        new_sentence_instance = sentence.update_data(**new_slot_data)
+        new_sentence_instances.append(new_sentence_instance)
+    
+    return new_sentence_instances
+
+def get_noun_role_mask(
+    noun_data: pd.DataFrame,
+    role: str
+) -> pd.Series:
+    if f'noun.role.{role}' in _cached_word_data:
+        return _cached_word_data[f'noun.role.{role}']
+    role_mask = noun_data['role'] == role
+    _cached_word_data[f'noun.role.{role}'] = role_mask
+    return role_mask
+
+def get_noun_word_set_mask(
+    noun_data: pd.DataFrame,
+    word_set: str
+) -> pd.Series:
+    if f'noun.word_set.{word_set}' in _cached_word_data:
+        return _cached_word_data[f'noun.word_set.{word_set}']
+    # word set column may be wildcard '*'
+    word_set_mask = (
+        (noun_data['word_set'] == word_set) |
+        (noun_data['word_set'] == '*')
+    )
+    _cached_word_data[f'noun.word_set.{word_set}'] = word_set_mask
+    return word_set_mask
+
+def get_noun_set_type_mask(
+    noun_data: pd.DataFrame,
+    set_type: str,
+    noun_tag: str = 'noun'
+) -> pd.Series:
+    if f'noun.set_type.{set_type}' in _cached_word_data:
+        return _cached_word_data[f'noun.set_type.{set_type}']
+    # nouns may specify multiple word set types, separated by |
+    # so check for string containment rather than exact match
+    set_type_mask = noun_data['set_type'].str.contains(set_type)
+    _cached_word_data[f'noun.set_type.{set_type}'] = set_type_mask
+    return set_type_mask
+
+def get_class_for_word(source_data: pd.DataFrame, word: SourceWord) -> str:
+    source = word.source
+    word_data = source_data[source]
+    word_row = word_data.loc[word.index]
+    word_class = word_row['class']
+    return word_class
+
+def fill_single_noun_slots(
+    sentence_list: List[AbxSentenceTriplet],
+    source_word_data: Dict[str, pd.DataFrame],
+    constraint_config: Dict[str, List[str]],
+    noun_tag: str = 'noun'
+) -> List[AbxSentenceTriplet]:
+    noun_constraints = constraint_config.get(noun_tag, [])
+    noun_constraints = set(noun_constraints)
+    
+    noun_mask = pd.Series([True] * len(source_word_data[noun_tag]))
+
+    role_constraint = [c for c in noun_constraints if c.startswith('role:')]
+    if role_constraint:
+        assert len(role_constraint) == 1, f"Expected at most one role constraint for noun slots, but found {len(role_constraint)}: {role_constraint}"
+        role = role_constraint[0].split(':')[1]
+        noun_mask &= get_noun_role_mask(source_word_data[noun_tag], role)
+        noun_constraints.remove(role_constraint[0])
+
+    # allowed configurations for remaining constraints are:
+    # 1. abx_equal: all noun slots should be filled with the same noun
+    # 2. ax_equal, bx_not_equal: noun in sentence A and X should be the same, but different from the noun in sentence B
+    # 3. bx_equal, ax_not_equal: noun in sentence B and X should be the same, but different from the noun in sentence A
+    # 4. ab_equal, ax_not_equal, bx_not_equal: noun in sentence A and B should be the same, no noun in sentence X
+    if noun_constraints == {'abx_equal'}:
+        new_sentence_instances = []
+        for sentence in sentence_list:
+            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
+            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
+            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            new_sentence = sentence.update_data(
+                a_slots={noun_tag: nouns_for_sentence},
+                b_slots={noun_tag: nouns_for_sentence},
+                x_slots={noun_tag: nouns_for_sentence},
+            )
+            new_sentence_instances.append(new_sentence)
+    elif noun_constraints == {'ax_equal', 'ab_not_equal'}:
+        new_sentence_instances = []
+        for sentence in sentence_list:
+            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
+            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
+            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            for noun_ax in nouns_for_sentence:
+                new_sentence = sentence.update_data(
+                    a_slots={noun_tag: noun_ax},
+                    x_slots={noun_tag: noun_ax},
+                )
+                for noun_b in nouns_for_sentence:
+                    if noun_b.word != noun_ax.word:
+                        new_sentence_b = new_sentence.update_data(
+                            b_slots={noun_tag: noun_b},
+                        )
+                        new_sentence_instances.append(new_sentence_b)
+    elif noun_constraints == {'bx_equal', 'ax_not_equal'}:
+        new_sentence_instances = []
+        for sentence in sentence_list:
+            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
+            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
+            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            for noun_bx in nouns_for_sentence:
+                new_sentence = sentence.update_data(
+                    b_slots={noun_tag: noun_bx},
+                    x_slots={noun_tag: noun_bx},
+                )
+                for noun_a in nouns_for_sentence:
+                    if noun_a.word != noun_bx.word:
+                        new_sentence_a = new_sentence.update_data(
+                            a_slots={noun_tag: noun_a},
+                        )
+                        new_sentence_instances.append(new_sentence_a)
+    elif noun_constraints == {'ab_equal'}:
+        new_sentence_instances = []
+        for sentence in sentence_list:
+            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
+            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
+            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            for noun_ab in nouns_for_sentence:
+                new_sentence = sentence.update_data(
+                    a_slots={noun_tag: noun_ab},
+                    b_slots={noun_tag: noun_ab},
+                )
+                new_sentence_instances.append(new_sentence)
+    else:
+        raise ValueError(f"Unsupported noun constraint configuration: {noun_constraints}")
+
+    return new_sentence_instances
+
+def fill_double_noun_slots(
+    sentence_list: List[AbxSentenceTriplet],
+    source_word_data: Dict[str, pd.DataFrame],
+    constraint_config: Dict[str, List[str]],
+) -> List[AbxSentenceTriplet]:
+    """
+    Wraps around fill_single_noun_slots to fill slots for sentences with two noun slots, e.g. {noun.1} and {noun.2}.
+    """
+    sentence_list = fill_single_noun_slots(
+        sentence_list,
+        source_word_data,
+        constraint_config,
+        noun_tag='noun.1',
+    )
+    sentence_list = fill_single_noun_slots(
+        sentence_list,
+        source_word_data,
+        constraint_config,
+        noun_tag='noun.2',
+    )
+    return sentence_list
+
+def fill_class_slots(
+    sentence_list: List[AbxSentenceTriplet],
+    source_word_data: Dict[str, pd.DataFrame],
+    constraint_config: Dict[str, List[str]],
+) -> List[AbxSentenceTriplet]:
+    class_constraints = constraint_config.get('class', [])
+    assert len(class_constraints) == 1,\
+        f"Expected exactly one constraint for class slots, but found {len(class_constraints)}"
+    match_constraint = class_constraints[0]
+    assert match_constraint.startswith('match:'),\
+        f"Expected class constraint to be a match constraint, but found {match_constraint}"
+    word_to_match = match_constraint.split(':')[1]
+
+    new_sentence_instances = []
+    for sentence in sentence_list:
+        new_slots = {}
+        for sentence_name, sentence, slots in sentence.items():
+            word_to_match_in_sentence = slots.get(word_to_match)
+            assert word_to_match_in_sentence is not None,\
+                f"Word to match for class constraint not found in sentence slots. Expected to find {word_to_match} in slots, but found {slots.keys()}"
+            class_prefix = get_class_for_word(source_word_data[word_to_match_in_sentence.source], word_to_match_in_sentence)
+            new_slots[sentence_name + '_slots'] = {'class': class_prefix}
+        new_sentence_instance = sentence.update_data(**new_slots)
+        new_sentence_instances.append(new_sentence_instance)
+    return new_sentence_instances
+            
+
+def get_valid_target_combinations(
+        member_set_ids: List[str],
+        target_constraints: List[str],
+) -> List[Tuple[str, str, str]]:
+    """
+    Get a list of words that match the constraints for the target slot.
+    words are determined to be eligible based on the 'member_set_id' column
+    at present three constraint configurations are supported:
+
+    1:
+        - ab_not_equal: indicates that the words filling the 'a' and 'b' slots should
+        not be identical
+        - ax_equal: indicates that the words filling the 'a' and 'x' slots should be identical
+    2:
+        - ax_nom: indicates that the words filling the 'a' and 'x' slots should be nominative
+        case forms of the same noun
+        - b_acc: indicates that the word filling the 'b' slot should be an accusative form of
+        the same noun as the word filling the 'a' slot
+    3.
+        - ax_noun: indicates that the words filling the 'a' and 'x' slots should be the same noun
+        - b_verb: indicates that the word filling the 'b' slot should be a verb which is a (near)
+        homophone of the noun filling the 'a' and 'x' slots
+
+    Return a list of valid (A, B, X) combinations.
+    """
+    target_constraints = set(target_constraints)
+    inequality_constraints = {'ab_not_equal', 'ax_equal'}
+    noun_case_constraints = {'ax_nom', 'b_acc'}
+    noun_verb_constraints = {'ax_noun', 'b_verb'}
+
+    # generate a list of all 2-permutations of the available member_set_ids
+    if target_constraints == inequality_constraints:
+        # the first element is the AX word type, and the second is the B word type
+        valid_id_combinations = list(itertools.permutations(member_set_ids, 2))
+        # rearrange into the format (A, B, X)
+        valid_id_combinations = [(ax, b, ax) for ax, b in valid_id_combinations]
+    # only one type of combination is allowed: [nominative, accusative]
+    # first check that member_set_ids match expected values
+    elif target_constraints == noun_case_constraints:
+        assert set(member_set_ids) == {'nom', 'acc'},\
+            f"Invalid member_set_ids for noun case constraint: {member_set_ids}. "\
+            f"Expected member_set_ids are 'nom' and 'acc'."
+        valid_id_combinations = [('nom', 'acc', 'nom')]
+    # only one type of combination is allowed: [noun, verb]
+    elif target_constraints == noun_verb_constraints:
+        assert set(member_set_ids) == {'noun', 'verb'},\
+            f"Invalid member_set_ids for noun-verb constraint: {member_set_ids}. "\
+            f"Expected member_set_ids are 'noun' and 'verb'."
+        valid_id_combinations = [('noun', 'verb', 'noun')]
+    else:
+        raise ValueError(
+            f"Invalid target constraints: {target_constraints}. "
+            f"Expected one of: {inequality_constraints}, {noun_case_constraints}, {noun_verb_constraints}."
+        )
+    return valid_id_combinations
+
+def fill_adjective_slots(
+    sentence_list: List[AbxSentenceTriplet],
+    source_word_data: Dict[str, pd.DataFrame],
+    constraint_config: Dict[str, List[str]],
+) -> List[AbxSentenceTriplet]:
+    # no constraints currently implemented for adjectives
+    # so just fill all adjective slots with all available adjectives
+    assert 'adjective' not in constraint_config, "Constraints for adjectives are not currently supported."
+    adjective_data = source_word_data['adjective']
+    adjectives = _get_source_words_from_dataframe(adjective_data)
+    new_sentence_instances = []
+    for adjective in adjectives:
+        for sentence in sentence_list:
+            new_slots = {}
+            for sentence_name, sentence, slots in sentence.items():
+                if '{adjective}' not in sentence:
+                    continue
+                new_slots = {sentence_name + '_slots': {'adjective': adjective}}
+            new_sentence_instance = sentence.update_data(**new_slots)
+            new_sentence_instances.append(new_sentence_instance)
+    return new_sentence_instances
 
 def main():
-    # compute pairwise Levenshtein distance for all original and edited words
-    # for one root at a time
-    unique_roots = edited_df['root'].unique()
-    abx_df_list = []
-    for root in tqdm(unique_roots, desc="Computing ABX triplets for each root"):
-        root_mask = edited_df['root'] == root
-        words_w_root = edited_df.loc[root_mask, 'edited_word'].tolist()
-        distance_matrix = np.zeros((len(words_w_root), len(words_w_root)), dtype=np.int16)
-        for i, word_i in tqdm(list(enumerate(words_w_root)), desc="Computing pairwise distances"):
-            for j, word_j in enumerate(words_w_root[i+1:], start=i+1):
-                distance_matrix[i, j] = levenshtein_distance(word_i, word_j)
-                distance_matrix[j, i] = distance_matrix[i, j]
+    args = get_args()
 
-        # now that we have the pairwise edit distances, we can select
-        # triplets of A,B,X words
-        # where Lev(A,X) > Lev(B,X)
-        # and A,X have the same features as each other, but different from B
+    # load sentence frames
+    with open(args.frames_file, 'r') as f:
+        frame_data = yaml.safe_load(f)
+    frames = frame_data['data']
 
-        # for now, try to generate one triplet per original word
-        # but this can be scaled up in the future
-        abx_df = get_all_abx_triples(edited_df.loc[root_mask], distance_matrix)
-        abx_df_list.append(abx_df)
-    abx_df = pd.concat(abx_df_list, ignore_index=True)
-    abx_df.to_csv(abx_wordlist, index=False)
+    # load source data
+    source_word_data = load_source_data(args)
 
+    # for each frame, select eligible seed words and generate sentences
+    sentences = []
+    for frame in tqdm(frames, desc="Generating sentences from frames"):
+        frame_sentences = generate_abx_frames(frame, source_word_data)
+        sentences.extend(frame_sentences)
+
+    # convert to dataframe and save
+    sentences_dicts = [sentence.__dict__() for sentence in sentences]
+    sentences_df = pd.DataFrame(sentences_dicts)
+    sentences_df.to_csv(args.output_file, index=False)
 
 def get_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate sentences from frames and ABX words.")
-    parser.add_argument("--frames_file", type=str, required=True, help="Path to the YAML file containing sentence frames.")
-    parser.add_argument("--abx_words_file", type=str, required=True, help="Path to the CSV file containing ABX words.")
-    parser.add_argument("--output_file", type=str, required=True, help="Path to the output file where generated sentences will be saved.")
+    parser = argparse.ArgumentParser(description="Generate sentences from frames and seed words.")
+    parser.add_argument(
+        "--frames-file",
+        type=str,
+        help="Path to the YAML file containing sentence frames.",
+        default=frame_config,
+    )
+    parser.add_argument(
+        "--docs-dir",
+        type=str,
+        help="Path to the directory where documentation files are stored.",
+        default=documentation_dir,
+    )
+    parser.add_argument(
+        "--output-file",
+        type=str,
+        help="Path to the output file where generated sentences will be saved.",
+        default=frame_list,
+    )
     return parser.parse_args()

@@ -1,19 +1,19 @@
-word,root,gloss,part_of_speech,word_set,set_type,set_member_id
-ə̀və̀lɛ̀ðᴐ́,vəlɛð,pull,verb,pull_tam,tam_alternation,PFV.VENT
-à və́lɛ̀ðɛ̀,vəlɛð,pull,verb,pull_tam,tam_alternation,PFV.IT
-á və̀lɛ̀ðᴐ́,vəlɛð,pull,verb,pull_tam,tam_alternation,IPFV.VENT
-á və́lɛ̀ðà,vəlɛð,pull,verb,pull_tam,tam_alternation,IPFV.IT
-àpᴐ́,ap,carry,verb,carry_tam,tam_alternation,PFV.VENT
-à ápɛ̀,ap,carry,verb,carry_tam,tam_alternation,PFV.IT
-á àpᴐ́,ap,carry,verb,carry_tam,tam_alternation,IPFV.VENT
-á ápà,ap,carry,verb,carry_tam,tam_alternation,IPFV.IT
-kɛ̀cí,ap,take,verb,carry_tam,tam_alternation,PFV.VENT
-á kᴐ́cᴐ̀,ap,take,verb,carry_tam,tam_alternation,IPFV.IT
-rô,ðô,stick,noun,sticks_stab,noun_verb_alternation,noun
-ðô,ðô,stick,noun,stick_chop,noun_verb_alternation,noun
-rᴐ́,r,stab,verb,sticks_stab,noun_verb_alternation,verb
-ðᴐ́,r,chop,verb,stick_chop,noun_verb_alternation,verb
-ðᴐ̀nd̪ᴐ̀,ðᴐ̀nd̪ᴐ̀,sheep,noun,sheep_nomacc,nomacc_alternation,nom
-ðᴐ̀nd̪à,ðᴐ̀nd̪ᴐ̀,sheep,noun,sheep_nomacc,nomacc_alternation,acc
-ŋɛ́n,ŋɛ́n,dog,noun,dog_nomacc,nomacc_alternation,nom
-ŋɛ́nɛ́,ŋɛ́n,dog,noun,dog_nomacc,nomacc_alternation,acc
+index,word,root,gloss,part_of_speech,word_set,set_type,set_member_id,class
+0,ə̀və̀lɛ̀ðᴐ́,vəlɛð,pull,verb,pull_tam,tam_alternation,PFV.VENT,
+1,à və́lɛ̀ðɛ̀,vəlɛð,pull,verb,pull_tam,tam_alternation,PFV.IT,
+2,á və̀lɛ̀ðᴐ́,vəlɛð,pull,verb,pull_tam,tam_alternation,IPFV.VENT,
+3,á və́lɛ̀ðà,vəlɛð,pull,verb,pull_tam,tam_alternation,IPFV.IT,
+4,àpᴐ́,ap,carry,verb,carry_tam,tam_alternation,PFV.VENT,
+5,à ápɛ̀,ap,carry,verb,carry_tam,tam_alternation,PFV.IT,
+6,á àpᴐ́,ap,carry,verb,carry_tam,tam_alternation,IPFV.VENT,
+7,á ápà,ap,carry,verb,carry_tam,tam_alternation,IPFV.IT,
+8,kɛ̀cí,ap,take,verb,carry_tam,tam_alternation,PFV.VENT,
+9,á kᴐ́cᴐ̀,ap,take,verb,carry_tam,tam_alternation,IPFV.IT,
+10,rô,ðô,stick,noun,sticks_stab,noun_verb_alternation,noun,r
+11,ðô,ðô,stick,noun,stick_chop,noun_verb_alternation,noun,ð
+12,rᴐ́,r,stab,verb,sticks_stab,noun_verb_alternation,verb,
+13,ðᴐ́,r,chop,verb,stick_chop,noun_verb_alternation,verb,
+14,ðᴐ̀nd̪ᴐ̀,ðᴐ̀nd̪ᴐ̀,sheep,noun,sheep_nomacc,nomacc_alternation,nom,ð
+15,ðᴐ̀nd̪à,ðᴐ̀nd̪ᴐ̀,sheep,noun,sheep_nomacc,nomacc_alternation,acc,ð
+16,ŋɛ́n,ŋɛ́n,dog,noun,dog_nomacc,nomacc_alternation,nom,ŋ
+17,ŋɛ́nɛ́,ŋɛ́n,dog,noun,dog_nomacc,nomacc_alternation,acc,ŋ

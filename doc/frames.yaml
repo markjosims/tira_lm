@@ -1,7 +1,7 @@
 # Frames for building ABX sentence sets.
 # Each frame describes the logic for constructing a set of ABX sentences.
 #
-# - The `word_set` attribute specifies which subset of the seed word lexicon
+# - The `set_type` attribute specifies which subset of the seed word lexicon
 #   is relevant for the given frame.
 # - Multiple frames may exist for a particular word set. The difference between
 #   the logic of each frame is specified in the name and description.
@@ -12,114 +12,137 @@
 # - Regardless of frame constraints, for all sets Levenshtein(A,X) > Levenshtein(B,X).
 data:
 - name: "tam_alternation_same_object"
-  word_set: "tam_alternation"
+  set_type: "tam_alternation"
   sentence_templates:
-    generic: "{noun.subject} {class}{$tgt} {noun.object}"
+    generic: "{noun.1} {class}{$tgt} {noun.2}"
   constraints:
     "$tgt":
     - "ab_not_equal"
     - "ax_equal"
-    "noun.subject":
+    "noun.1":
     - "abx_equal"
-    "noun.object":
+    - "role:subject"
+    "noun.2":
     - "abx_equal"
+    - "role:object"
   description: >
     Word A and B have different TAM values, and the object noun is same across
     sentences A, B and X.
 - name: "tam_alternation_different_object"
-  word_set: "tam_alternation"
+  set_type: "tam_alternation"
   sentence_templates:
-    generic: "{noun.subject} {class}{$tgt} {noun.object}"
+    generic: "{noun.1} {class}{$tgt} {noun.2}"
   constraints:
     "$tgt":
     - "ab_not_equal"
     - "ax_equal"
-    "noun.subject":
+    "noun.1":
     - "abx_equal"
-    "noun.object":
+    - "role:subject"
+    "class":
+    - "match:noun.1"
+    "noun.2":
     - "bx_equal"
     - "ax_not_equal"
+    - "role:object"
   description: >
     Word A and B have different TAM values, and the object noun is the same
     for B and X but different for A.
 - name: "tam_alternation_same_object_adverb"
-  word_set: "tam_alternation"
+  set_type: "tam_alternation"
   sentence_templates:
-    generic: "{noun.subject} {class}{$tgt} {noun.object} {adverb}"
+    generic: "{noun.1} {class}{$tgt} {noun.2} {adverb}"
   constraints:
     "$tgt":
     - "ab_not_equal"
     - "ax_equal"
     - "ab_aspect_not_equal"
-    "noun.subject":
+    "noun.1":
     - "abx_equal"
-    "noun.object":
+    - "role:subject"
+    "class":
+    - "match:noun.1"
+    "noun.2":
     - "abx_equal"
     - "ax_not_equal"
+    - "role:object"
     "adverb":
-    - "match_aspect"
+    - "match:aspect"
   description: >
     Word A and B have different TAM values, and the object noun is same across
     sentences A, B and X. The aspect is corroborated by the presence of a temporal
     adverb.
 - name: "tam_alternation_different_object_adverb"
-  word_set: "tam_alternation"
+  set_type: "tam_alternation"
   sentence_templates:
-    generic: "{noun.subject} {class}{$tgt} {noun.object} {adverb}"
+    generic: "{noun.1} {class}{$tgt} {noun.2} {adverb}"
   constraints:
     "$tgt":
     - "ab_not_equal"
     - "ax_equal"
     - "ab_aspect_not_equal"
-    "noun.subject":
+    "noun.1":
     - "abx_equal"
-    "noun.object":
+    - "role:subject"
+    "class":
+    - "match:noun.1"
+    "noun.2":
     - "bx_equal"
     - "ax_not_equal"
+    - "role:object"
     "adverb":
-    - "match_aspect"
+    - "match:aspect"
   description: >
     Word A and B have different TAM values, and the object noun is the same
     for B and X but different for A. The aspect is corroborated by the presence
     of a temporal adverb.
 - name: "noun_verb_alternation"
-  word_set: "noun_verb_alternation"
+  set_type: "noun_verb_alternation"
   sentence_templates:
-    a: "{$tgt=noun} nɛ̀ {noun}"
-    b: "{$tgt=verb} {noun}"
-    x: "{$tgt=noun} {class}{adjective}"
+    a: "{$tgt} nɛ̀ {noun}"
+    b: "{$tgt} {noun}"
+    x: "{$tgt} {class}{adjective}"
   constraints:
     "noun":
-    - "abx_equal"
+    - "ab_equal"
+    - "role:invariant"
     "$tgt":
-    - "ab_not_equal"
-    - "ax_equal"
+    - "ax_noun"
+    - "b_verb"
+    "class":
+    - "match:$tgt"
   description: >
     Words A and X are a noun that is near-homophonous with a verb, word B.
 - name: "nomacc_alternation_same_first_noun"
-  word_set: "nomacc_alternation"
+  set_type: "nomacc_alternation"
   sentence_templates:
-    generic: "{noun.subject} {class}àŋú {$tgt=noun}"
+    generic: "{noun} {class}àŋú {$tgt}"
   constraints:
     "noun":
     - "abx_equal"
+    - "role:subject"
+    "class":
+    - "match:noun"
     "$tgt":
-    - "ab_nom"
+    - "ax_nom"
     - "b_acc"
   description: >
     Words A and X are both the same noun marked for nominative case.
     Word B is the noun for accusative case. The noun preceding the verb
     (either the subject or a topicalized object) is the same for sentences ABX.
 - name: "nomacc_alternation_different_first_noun"
-  word_set: "nomacc_alternation"
+  set_type: "nomacc_alternation"
   sentence_templates:
-    generic: "{noun.subject} {class}àŋú {$tgt=noun}"
+    generic: "{noun} {class}àŋú {$tgt}"
   constraints:
     "noun":
     - "bx_equal"
     - "ax_not_equal"
+    - "role:subject"
+    "class":
+    - "match:noun.1"
     "$tgt":
-    - "ab_nom"
+    - "ax_nom"
     - "b_acc"
   description: >
     Words A and X are both the same noun marked for nominative case.

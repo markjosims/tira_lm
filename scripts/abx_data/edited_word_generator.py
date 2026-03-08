@@ -12,7 +12,7 @@ from functools import partial
 import pandas as pd
 from argparse import ArgumentParser
 from tqdm import tqdm
-from scripts.constants import wordlist, edited_wordlist
+from scripts.constants import seed_words, edited_wordlist
 
 log_level = os.environ.get('PYTHON_LOG_LEVEL', 'DEBUG')
 logging.basicConfig(level=log_level)
@@ -616,7 +616,7 @@ def test_k_edits():
 def main():
     args = get_args()
 
-    df = pd.read_csv(wordlist)
+    df = pd.read_csv(seed_words)
     edit_rows = []
     edited_words = set()
 

@@ -1,0 +1,7 @@
+index,word,root,gloss,class,role,word_set,set_type
+0,àpɾí,àpɾí,boy,j,subject,*,tam_alternation|nomacc_alternation
+1,àpɾíɲá,àpɾí,boy,j,object,*,tam_alternation|nomacc_alternation
+2,ðàŋàl,ðàŋàl,sheep,ð,subject,*,tam_alternation|nomacc_alternation
+3,ðàŋàlà,ðàŋàl,sheep,ð,object,*,tam_alternation|nomacc_alternation
+4,lúwᴐ́,lúwᴐ́,clothing,l,invariant,sticks_stab,noun_verb_alternation
+5,ŋᴐ̀mᴐ̀,ŋᴐ̀mᴐ̀,food,ŋ,invariant,stick_chop,noun_verb_alternation
