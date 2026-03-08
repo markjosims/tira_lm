@@ -48,7 +48,7 @@ class AbxSentenceTripletFilled(NamedTuple):
     set_type: str
     word_set: str
 
-    def __dict__(self):
+    def to_dict(self):
         return {
             'a_sentence': self.a_sentence,
             'b_sentence': self.b_sentence,
@@ -673,7 +673,7 @@ def main():
         sentences.extend(frame_sentences)
 
     # convert to dataframe and save
-    sentences_dicts = [sentence.__dict__() for sentence in sentences]
+    sentences_dicts = [sentence.to_dict() for sentence in sentences]
     sentences_df = pd.DataFrame(sentences_dicts)
     sentences_df.to_csv(args.output_file, index=False)
 
