@@ -1,25 +1,128 @@
+# Frames for building ABX sentence sets.
+# Each frame describes the logic for constructing a set of ABX sentences.
+#
+# - The `word_set` attribute specifies which subset of the seed word lexicon
+#   is relevant for the given frame.
+# - Multiple frames may exist for a particular word set. The difference between
+#   the logic of each frame is specified in the name and description.
+# - The sentence templates attribute apecifies how these sentences AB and X
+#   are constructed.
+# - When a single generic sentence template is specified, the sentences for
+#   AB and X are generated with words subject to constraints for the target word.
+# - Regardless of frame constraints, for all sets Levenshtein(A,X) > Levenshtein(B,X).
 data:
-- name: "'X see Y' frame"
-  sentence: "{word_nom} {cl}àŋú {word_acc}"
+- name: "tam_alternation_same_object"
+  word_set: "tam_alternation"
+  sentence_templates:
+    generic: "{noun.subject} {class}{$tgt} {noun.object}"
+  constraints:
+    "$tgt":
+    - "ab_not_equal"
+    - "ax_equal"
+    "noun.subject":
+    - "abx_equal"
+    "noun.object":
+    - "abx_equal"
   description: >
-    Two nouns, the noun in question should have a distinct accusative form.
-- name: "Intransitive verb"
-  sentence: "{subject} {cl}{verb} {adverb}"
+    Word A and B have different TAM values, and the object noun is same across
+    sentences A, B and X.
+- name: "tam_alternation_different_object"
+  word_set: "tam_alternation"
+  sentence_templates:
+    generic: "{noun.subject} {class}{$tgt} {noun.object}"
+  constraints:
+    "$tgt":
+    - "ab_not_equal"
+    - "ax_equal"
+    "noun.subject":
+    - "abx_equal"
+    "noun.object":
+    - "bx_equal"
+    - "ax_not_equal"
   description: >
-    A single noun with an intransitive verb.
-    Intended to test verbs of different TAM values.
-    Adverb can be inserted to add redundancy given TAM value.
-  example: >
-    A. àpɾí **jàbr̀t̪ᴐ́** "The boy jumped"
-    B. àpɾí *jábə̀rtà* "The boy will jump" (canonical form would be "àpɾí já ábr̀t̪à")
-    X. àpɾí *jábə̀rtò* "The boy jumped" (X is misspelled, A is canonical form)
-
-    Note that LevenshteinDistance(jàbr̀t̪ᴐ́, jábə̀rtò) = 5
-    and LevenshteinDistance(jábə̀rtà, jábə̀rtò) = 1
-    So using Levenshtein Edit Distance as a proxy would incorrectly predict B=X.
-- name: "Transitive verb"
-  sentence: "{subject} {cl}{verb} {object} {adverb}"
+    Word A and B have different TAM values, and the object noun is the same
+    for B and X but different for A.
+- name: "tam_alternation_same_object_adverb"
+  word_set: "tam_alternation"
+  sentence_templates:
+    generic: "{noun.subject} {class}{$tgt} {noun.object} {adverb}"
+  constraints:
+    "$tgt":
+    - "ab_not_equal"
+    - "ax_equal"
+    - "ab_aspect_not_equal"
+    "noun.subject":
+    - "abx_equal"
+    "noun.object":
+    - "abx_equal"
+    - "ax_not_equal"
+    "adverb":
+    - "match_aspect"
   description: >
-    Transitive sentence with subject and object nouns.
-    Intended to test verbs of different TAM values.
-    Adverb can be inserted to add redundancy given TAM value.
+    Word A and B have different TAM values, and the object noun is same across
+    sentences A, B and X. The aspect is corroborated by the presence of a temporal
+    adverb.
+- name: "tam_alternation_different_object_adverb"
+  word_set: "tam_alternation"
+  sentence_templates:
+    generic: "{noun.subject} {class}{$tgt} {noun.object} {adverb}"
+  constraints:
+    "$tgt":
+    - "ab_not_equal"
+    - "ax_equal"
+    - "ab_aspect_not_equal"
+    "noun.subject":
+    - "abx_equal"
+    "noun.object":
+    - "bx_equal"
+    - "ax_not_equal"
+    "adverb":
+    - "match_aspect"
+  description: >
+    Word A and B have different TAM values, and the object noun is the same
+    for B and X but different for A. The aspect is corroborated by the presence
+    of a temporal adverb.
+- name: "noun_verb_alternation"
+  word_set: "noun_verb_alternation"
+  sentence_templates:
+    a: "{$tgt=noun} nɛ̀ {noun}"
+    b: "{$tgt=verb} {noun}"
+    x: "{$tgt=noun} {class}{adjective}"
+  constraints:
+    "noun":
+    - "abx_equal"
+    "$tgt":
+    - "ab_not_equal"
+    - "ax_equal"
+  description: >
+    Words A and X are a noun that is near-homophonous with a verb, word B.
+- name: "nomacc_alternation_same_first_noun"
+  word_set: "nomacc_alternation"
+  sentence_templates:
+    generic: "{noun.subject} {class}àŋú {$tgt=noun}"
+  constraints:
+    "noun":
+    - "abx_equal"
+    "$tgt":
+    - "ab_nom"
+    - "b_acc"
+  description: >
+    Words A and X are both the same noun marked for nominative case.
+    Word B is the noun for accusative case. The noun preceding the verb
+    (either the subject or a topicalized object) is the same for sentences ABX.
+- name: "nomacc_alternation_different_first_noun"
+  word_set: "nomacc_alternation"
+  sentence_templates:
+    generic: "{noun.subject} {class}àŋú {$tgt=noun}"
+  constraints:
+    "noun":
+    - "bx_equal"
+    - "ax_not_equal"
+    "$tgt":
+    - "ab_nom"
+    - "b_acc"
+  description: >
+    Words A and X are both the same noun marked for nominative case.
+    Word B is the noun for accusative case. The noun preceding the verb
+    (either the subject or a topicalized object) is the same for sentences
+    B and X but different for A and X.
