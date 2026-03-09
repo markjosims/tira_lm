@@ -7,8 +7,8 @@ index,word,root,gloss,part_of_speech,word_set,set_type,set_member_id,class
 5,à ápɛ̀,ap,carry,verb,carry_tam,tam_alternation,PFV.IT,
 6,á àpᴐ́,ap,carry,verb,carry_tam,tam_alternation,IPFV.VENT,
 7,á ápà,ap,carry,verb,carry_tam,tam_alternation,IPFV.IT,
-8,kɛ̀cí,ap,take,verb,carry_tam,tam_alternation,PFV.VENT,
-9,á kᴐ́cᴐ̀,ap,take,verb,carry_tam,tam_alternation,IPFV.IT,
+8,kɛ̀cí,ap,take,verb,take_tam,tam_alternation,PFV.VENT,
+9,á kᴐ́cᴐ̀,ap,take,verb,take_tam,tam_alternation,IPFV.IT,
 10,rô,ðô,stick,noun,sticks_stab,noun_verb_alternation,noun,r
 11,ðô,ðô,stick,noun,stick_chop,noun_verb_alternation,noun,ð
 12,rᴐ́,r,stab,verb,sticks_stab,noun_verb_alternation,verb,
