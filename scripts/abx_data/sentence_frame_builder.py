@@ -332,7 +332,10 @@ def fill_nontarget_slots(
         
 _cached_word_data = {}
 
-def _get_source_words_from_dataframe(word_data: pd.DataFrame) -> List[SourceWord]:
+def _get_source_words_from_dataframe(
+        word_data: pd.DataFrame,
+        source: str,
+) -> List[SourceWord]:
     source_words = []
     for index, row in word_data.iterrows():
         source_word = SourceWord(
@@ -354,7 +357,10 @@ def _get_feature2adverb(adverb_data: pd.DataFrame) -> Dict[str, SourceWord]:
         feature_mask = adverb_data['constraint'] == feature_str
         assert feature_mask.sum() == 1,\
             f"Expected exactly one adverb for constraint {feature_str}, but found {feature_mask.sum()}. Adverbs: {adverb_data.loc[feature_mask, 'word'].tolist()}"
-        feature2adverb[feature_str] = _get_source_words_from_dataframe(adverb_data.loc[feature_mask])[0]
+        feature2adverb[feature_str] = _get_source_words_from_dataframe(
+            adverb_data.loc[feature_mask],
+            source='adverb',
+        )[0]
     _cached_word_data['feature2adverb'] = feature2adverb
     return feature2adverb
 
@@ -463,7 +469,10 @@ def fill_single_noun_slots(
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
             nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
-            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            nouns_for_sentence = _get_source_words_from_dataframe(
+                nouns_for_sentence,
+                source='noun',
+            )
             new_sentence = sentence.update_data(
                 a_slots={noun_tag: nouns_for_sentence},
                 b_slots={noun_tag: nouns_for_sentence},
@@ -478,7 +487,10 @@ def fill_single_noun_slots(
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
             nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
-            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            nouns_for_sentence = _get_source_words_from_dataframe(
+                nouns_for_sentence,
+                source='noun',
+            )
             for noun_ax in nouns_for_sentence:
                 new_sentence = sentence.update_data(
                     a_slots={noun_tag: noun_ax},
@@ -498,7 +510,10 @@ def fill_single_noun_slots(
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
             nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
-            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            nouns_for_sentence = _get_source_words_from_dataframe(
+                nouns_for_sentence,
+                source='noun',
+            )
             for noun_bx in nouns_for_sentence:
                 new_sentence = sentence.update_data(
                     b_slots={noun_tag: noun_bx},
@@ -518,7 +533,10 @@ def fill_single_noun_slots(
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
             nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
-            nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
+            nouns_for_sentence = _get_source_words_from_dataframe(
+                nouns_for_sentence,
+                source='noun',
+            )
             for noun_ab in nouns_for_sentence:
                 new_sentence = sentence.update_data(
                     a_slots={noun_tag: noun_ab},
@@ -644,7 +662,10 @@ def fill_adjective_slots(
     # so just fill all adjective slots with all available adjectives
     assert 'adjective' not in constraint_config, "Constraints for adjectives are not currently supported."
     adjective_data = source_word_data['adjective']
-    adjectives = _get_source_words_from_dataframe(adjective_data)
+    adjectives = _get_source_words_from_dataframe(
+        adjective_data,
+        source='adjective',
+    )
     new_sentence_instances = []
     for adjective in adjectives:
         for sentence in sentence_list:
