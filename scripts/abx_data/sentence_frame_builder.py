@@ -627,7 +627,7 @@ def fill_class_slots(
                 f"Word to match for class constraint not found in sentence slots. Expected to find {word_to_match} in slots, but found {slots.keys()}"
             class_prefix = get_class_for_word(source_word_data, word_to_match_in_sentence)
             new_slots[sentence_name + '_slots'] = {'class': class_prefix}
-        new_sentence_instance = sentence_template.update_data(**new_slots)
+        new_sentence_instance = sentence.update_data(**new_slots)
         new_sentence_instances.append(new_sentence_instance)
     return new_sentence_instances
             
