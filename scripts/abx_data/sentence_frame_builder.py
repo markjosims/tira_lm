@@ -465,7 +465,7 @@ def get_noun_set_type_mask(
     _cached_word_data[f'noun.set_type.{set_type}'] = set_type_mask
     return set_type_mask
 
-def get_class_for_word(source_data: pd.DataFrame, word: SourceWord) -> str:
+def get_class_for_word(source_data: Dict[str, pd.DataFrame], word: SourceWord) -> str:
     source = word.source
     word_data = source_data[source]
     word_row = word_data.loc[word.index]
@@ -625,7 +625,7 @@ def fill_class_slots(
             word_to_match_in_sentence = slots.get(word_to_match)
             assert word_to_match_in_sentence is not None,\
                 f"Word to match for class constraint not found in sentence slots. Expected to find {word_to_match} in slots, but found {slots.keys()}"
-            class_prefix = get_class_for_word(source_word_data[word_to_match_in_sentence.source], word_to_match_in_sentence)
+            class_prefix = get_class_for_word(source_word_data, word_to_match_in_sentence)
             new_slots[sentence_name + '_slots'] = {'class': class_prefix}
         new_sentence_instance = sentence_template.update_data(**new_slots)
         new_sentence_instances.append(new_sentence_instance)
