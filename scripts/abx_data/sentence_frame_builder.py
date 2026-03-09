@@ -179,7 +179,7 @@ def load_source_data(args: argparse.Namespace) -> Dict[str, pd.DataFrame]:
 def generate_abx_frames(
         frame: Dict[str, Any],
         source_word_data: Dict[str, pd.DataFrame]
-) -> List[Dict[str, Any]]:
+) -> List[AbxSentenceTripletFilled]:
     """
     For a given sentence frame, select all eligible seed words and generate sentences.
     The frame config specifies constraints on how seed words can be selected. For example,
@@ -244,6 +244,8 @@ def generate_abx_frames(
             source_word_data,
             constraints,
         ))
+    
+    return filled_sentences
 
 def get_sentences_with_targets(
     main_template: AbxSentenceTriplet,
