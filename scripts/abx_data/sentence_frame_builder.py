@@ -655,6 +655,10 @@ def fill_class_slots(
     for sentence in sentence_list:
         new_slots = {}
         for sentence_name, sentence_template, slots in sentence.items():
+            # not all templates may have the class slot
+            if '{class}' not in sentence_template:
+                continue
+
             word_to_match_in_sentence = slots.get(word_to_match)
             assert word_to_match_in_sentence is not None,\
                 f"Word to match for class constraint not found in sentence slots. Expected to find {word_to_match} in slots, but found {slots.keys()}"
