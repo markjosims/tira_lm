@@ -52,7 +52,11 @@ class SlotDict(dict):
 
     def update(self, **kwargs):
         for value in kwargs.values():
-            if not isinstance(value, SourceWord):
+            if isinstance(value, dict):
+                for sub_value in value.values():
+                    if not isinstance(sub_value, SourceWord):
+                        raise ValueError(f"Expected value of type SourceWord, but got {type(sub_value)}")
+            elif not isinstance(value, SourceWord):
                 raise ValueError(f"Expected value of type SourceWord, but got {type(value)}")
         return super().update(**kwargs)
     
