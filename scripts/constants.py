@@ -6,5 +6,7 @@ documentation_dir = 'doc/'
 frame_config = 'doc/frames.yaml'
 frame_list = 'data/abx_frames.csv'
 
-abx_wordlist = 'data/abx_words.csv'
 abx_sentence_list = 'data/abx_sentences.csv'
+
+# misc
+random_seed = 42

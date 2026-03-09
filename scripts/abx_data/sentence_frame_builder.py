@@ -78,17 +78,17 @@ class SlotDict(dict):
         return new_slot_dict
 
 class AbxSentenceTripletFilled(NamedTuple):
-    a_sentence: str
-    b_sentence: str
-    x_sentence: str
+    sentence_a: str
+    sentence_b: str
+    sentence_x: str
     set_type: str
     word_set: str
 
     def to_dict(self):
         return {
-            'a_sentence': self.a_sentence,
-            'b_sentence': self.b_sentence,
-            'x_sentence': self.x_sentence,
+            'sentence_a': self.sentence_a,
+            'sentence_b': self.sentence_b,
+            'sentence_x': self.sentence_x,
             'set_type': self.set_type,
             'word_set': self.word_set,
         }
@@ -149,19 +149,19 @@ class AbxSentenceTriplet:
 
     def fill_slots(self) -> AbxSentenceTripletFilled:
         # fill the templates for sentences A, B, and X using the slot values
-        a_sentence = self.format_sentence(self.a_template, self.a_slots)
-        b_sentence = self.format_sentence(self.b_template, self.b_slots)
-        x_sentence = self.format_sentence(self.x_template, self.x_slots)
+        sentence_a = self.format_sentence(self.a_template, self.a_slots)
+        sentence_b = self.format_sentence(self.b_template, self.b_slots)
+        sentence_x = self.format_sentence(self.x_template, self.x_slots)
 
-        for sentence in [a_sentence, b_sentence, x_sentence]:
+        for sentence in [sentence_a, sentence_b, sentence_x]:
             assert '{' not in sentence and '}' not in sentence,\
                 f"Not all slots were filled in sentence: {sentence}. "\
                 f"Remaining slots: {[slot for slot in [self.a_slots, self.b_slots, self.x_slots] if slot]}"
 
         return AbxSentenceTripletFilled(
-            a_sentence=a_sentence,
-            b_sentence=b_sentence,
-            x_sentence=x_sentence,
+            sentence_a=sentence_a,
+            sentence_b=sentence_b,
+            sentence_x=sentence_x,
             set_type=self.set_type,
             word_set=self.word_set,
         )
@@ -792,7 +792,7 @@ def main():
     # convert to dataframe and save
     sentences_dicts = [sentence.to_dict() for sentence in sentences]
     sentences_df = pd.DataFrame(sentences_dicts)
-    sentences_df.to_csv(args.output_file, index=False)
+    sentences_df.to_csv(args.output_file, index_label='frame_index')
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate sentences from frames and seed words.")

@@ -12,13 +12,13 @@ from functools import partial
 import pandas as pd
 from argparse import ArgumentParser
 from tqdm import tqdm
-from scripts.constants import seed_words, edited_wordlist
+from scripts.constants import seed_words, edited_wordlist, random_seed
 import unicodedata
 
 log_level = os.environ.get('PYTHON_LOG_LEVEL', 'DEBUG')
 logging.basicConfig(level=log_level)
 
-seed = os.environ.get('RANDOM_SEED', 42)
+seed = os.environ.get('RANDOM_SEED', random_seed)
 random.seed(seed)
 
 """
