@@ -50,6 +50,12 @@ class SlotDict(dict):
             raise ValueError(f"Expected value of type SourceWord, but got {type(value)}")
         super().__setitem__(key, value)
 
+    def update(self, **kwargs):
+        for value in kwargs.values():
+            if not isinstance(value, SourceWord):
+                raise ValueError(f"Expected value of type SourceWord, but got {type(value)}")
+        return super().update(**kwargs)
+
 class AbxSentenceTripletFilled(NamedTuple):
     a_sentence: str
     b_sentence: str
