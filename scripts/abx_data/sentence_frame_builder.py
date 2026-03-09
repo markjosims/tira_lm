@@ -270,7 +270,7 @@ def get_sentences_with_targets(
                 word_mask = word_set_seed_words['set_member_id'] == set_member_id
                 words_for_slot = word_set_seed_words.loc[word_mask]
                 if words_for_slot.empty:
-                    continue
+                    break
                 assert len(words_for_slot) == 1,\
                     f"Expected exactly one word for set_member_id {set_member_id} in word set {word_set}, "\
                     f"but found {len(words_for_slot)}. Words: {words_for_slot['word'].tolist()}"
@@ -282,8 +282,10 @@ def get_sentences_with_targets(
                     set_member_id=set_member_id,
                 )
                 slots[slot_name] = {'$tgt': word_for_slot}
-            sentence_instance = main_template.update_data(word_set=word_set, **slots)
-            sentences_with_targets.append(sentence_instance)
+            else:
+                # only append sentence instance if all three target words were found for the combination
+                sentence_instance = main_template.update_data(word_set=word_set, **slots)
+                sentences_with_targets.append(sentence_instance)
     return sentences_with_targets
 
 def fill_nontarget_slots(
