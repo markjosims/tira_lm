@@ -131,7 +131,7 @@ class AbxSentenceTriplet:
             if new_attr in ['a_slots', 'b_slots', 'x_slots']:
                 # update the existing slots dict with the new values
                 current_slots = getattr(new_instance, new_attr)
-                current_slots.update(value)
+                current_slots.update(**value)
             else:
                 setattr(new_instance, new_attr, value)
         return new_instance
