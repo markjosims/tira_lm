@@ -13,6 +13,7 @@ import pandas as pd
 from argparse import ArgumentParser
 from tqdm import tqdm
 from scripts.constants import seed_words, edited_wordlist
+import unicodedata
 
 log_level = os.environ.get('PYTHON_LOG_LEVEL', 'DEBUG')
 logging.basicConfig(level=log_level)
@@ -629,6 +630,10 @@ def main():
 
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Generating edited words"):
         word = row['word']
+
+        # apply NFKD norm so all characters are decomposed and represented in a consistent way
+        word = unicodedata.normalize('NFKD', word)
+
         index = row.name
 
         # include row for original word
