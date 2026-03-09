@@ -682,6 +682,7 @@ def get_valid_target_combinations(
     """
     target_constraints = set(target_constraints)
     inequality_constraints = {'ab_not_equal', 'ax_equal'}
+    inequality_and_aspect_constraints = {'ab_not_equal', 'ax_equal', 'ab_aspect_not_equal'}
     noun_case_constraints = {'ax_nom', 'b_acc'}
     noun_verb_constraints = {'ax_noun', 'b_verb'}
 
@@ -693,6 +694,18 @@ def get_valid_target_combinations(
         valid_id_combinations = [(ax, b, ax) for ax, b in valid_id_combinations]
     # only one type of combination is allowed: [nominative, accusative]
     # first check that set_member_ids match expected values
+    elif target_constraints == inequality_and_aspect_constraints:
+        # same as inequality constraints
+        # but also require that the aspect of the A and X words is different
+        valid_id_combinations = list(itertools.permutations(set_member_ids, 2))
+        valid_id_combinations = [(ax, b, ax) for ax, b in valid_id_combinations]
+        filtered_aspect = []
+        for ax, b, _ in valid_id_combinations:
+            ax_aspect = ax.split('.')[0]
+            b_aspect = b.split('.')[0]
+            if ax_aspect != b_aspect:
+                filtered_aspect.append((ax, b, ax))
+        valid_id_combinations = filtered_aspect
     elif target_constraints == noun_case_constraints:
         assert set(set_member_ids) == {'nom', 'acc'},\
             f"Invalid set_member_ids for noun case constraint: {set_member_ids}. "\
@@ -707,7 +720,8 @@ def get_valid_target_combinations(
     else:
         raise ValueError(
             f"Invalid target constraints: {target_constraints}. "
-            f"Expected one of: {inequality_constraints}, {noun_case_constraints}, {noun_verb_constraints}."
+            f"Expected one of: {inequality_constraints}, {inequality_and_aspect_constraints}, "
+            f"{noun_case_constraints}, {noun_verb_constraints}."
         )
     return valid_id_combinations
 
