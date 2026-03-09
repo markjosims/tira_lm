@@ -38,7 +38,7 @@ def compute_metrics(tokenizer, eval_preds):
     preds_nosymbols = []
     labels_nosymbols = []
 
-    for i, (pred, label) in enumerate(zip(decoded_preds, decoded_labels)):
+    for pred, label in zip(decoded_preds, decoded_labels):
         for special_token in tokenizer.all_special_tokens:
             pred = pred.replace(special_token, '')
             label = label.replace(special_token, '')
