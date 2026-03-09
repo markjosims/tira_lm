@@ -141,7 +141,7 @@ data:
     - "ax_not_equal"
     - "role:subject"
     "class":
-    - "match:noun.1"
+    - "match:noun"
     "$tgt":
     - "ax_nom"
     - "b_acc"
