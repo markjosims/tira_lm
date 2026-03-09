@@ -392,7 +392,7 @@ def fill_adverb_slots(
     # matches that aspect, then update the slots
     for sentence in sentence_list:
         new_slot_data = {}
-        for sentence_name, sentence, slots in sentence.items():
+        for sentence_name, sentence_template, slots in sentence.items():
             target_word = slots.get('$tgt')
             target_word_features = target_word.set_member_id.split('.')
             target_aspect = target_word_features[0]
@@ -595,13 +595,13 @@ def fill_class_slots(
     new_sentence_instances = []
     for sentence in sentence_list:
         new_slots = {}
-        for sentence_name, sentence, slots in sentence.items():
+        for sentence_name, sentence_template, slots in sentence.items():
             word_to_match_in_sentence = slots.get(word_to_match)
             assert word_to_match_in_sentence is not None,\
                 f"Word to match for class constraint not found in sentence slots. Expected to find {word_to_match} in slots, but found {slots.keys()}"
             class_prefix = get_class_for_word(source_word_data[word_to_match_in_sentence.source], word_to_match_in_sentence)
             new_slots[sentence_name + '_slots'] = {'class': class_prefix}
-        new_sentence_instance = sentence.update_data(**new_slots)
+        new_sentence_instance = sentence_template.update_data(**new_slots)
         new_sentence_instances.append(new_sentence_instance)
     return new_sentence_instances
             
@@ -679,8 +679,8 @@ def fill_adjective_slots(
     for adjective in adjectives:
         for sentence in sentence_list:
             new_slots = {}
-            for sentence_name, sentence, slots in sentence.items():
-                if '{adjective}' not in sentence:
+            for sentence_name, sentence_template, slots in sentence.items():
+                if '{adjective}' not in sentence_template:
                     continue
                 new_slots = {sentence_name + '_slots': {'adjective': adjective}}
             new_sentence_instance = sentence.update_data(**new_slots)
