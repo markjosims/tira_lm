@@ -465,12 +465,20 @@ def get_noun_set_type_mask(
     _cached_word_data[f'noun.set_type.{set_type}'] = set_type_mask
     return set_type_mask
 
-def get_class_for_word(source_data: Dict[str, pd.DataFrame], word: SourceWord) -> str:
-    source = word.source
-    word_data = source_data[source]
+def get_class_for_word(
+        source_data: Dict[str, pd.DataFrame],
+        word: SourceWord
+    ) -> SourceWord:
+    word_data = source_data[word.source]
     word_row = word_data.loc[word.index]
-    word_class = word_row['class']
-    return word_class
+    word_class_str = word_row['class']
+    word_class_obj = SourceWord(
+        word=word_class_str,
+        index=word.index,
+        source=word.source,
+        set_member_id=word.set_member_id,
+    )
+    return word_class_obj
 
 def fill_single_noun_slots(
     sentence_list: List[AbxSentenceTriplet],
