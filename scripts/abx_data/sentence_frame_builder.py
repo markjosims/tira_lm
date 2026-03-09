@@ -341,7 +341,7 @@ def _get_source_words_from_dataframe(
         source_word = SourceWord(
             word=row['word'],
             index=index,
-            source=word_data.name,
+            source=source,
             set_member_id=row.get('set_member_id', None),
         )
         source_words.append(source_word)
