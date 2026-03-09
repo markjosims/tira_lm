@@ -402,6 +402,12 @@ def delete_interconsonantal_schwa(tokens: TokenArray) -> TokenArray:
     """
     token_indices = find_interconsonantal_vowels(tokens)
     schwa_indices = find_tokens_w_char(tokens, 'ə')
+
+    # a word-initial schwa should be considered interconsonantal,
+    # since a class prefix will be prepended at a later stage
+    if 0 in schwa_indices:
+        token_indices.append(0)
+
     unchanged_vowel_indices = find_tokens_without_edit(tokens, 'vowel_change')
     token_indices = get_index_intersection(
         token_indices,
