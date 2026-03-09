@@ -507,12 +507,13 @@ def fill_single_noun_slots(
                 nouns_for_sentence,
                 source='noun',
             )
-            new_sentence = sentence.update_data(
-                a_slots={noun_tag: nouns_for_sentence},
-                b_slots={noun_tag: nouns_for_sentence},
-                x_slots={noun_tag: nouns_for_sentence},
-            )
-            new_sentence_instances.append(new_sentence)
+            for noun in nouns_for_sentence:
+                new_sentence = sentence.update_data(
+                    a_slots={noun_tag: noun},
+                    b_slots={noun_tag: noun},
+                    x_slots={noun_tag: noun},
+                )
+                new_sentence_instances.append(new_sentence)
     elif noun_constraints == {'ax_equal', 'ab_not_equal'}:
         new_sentence_instances = []
         for sentence in sentence_list:
