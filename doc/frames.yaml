@@ -22,6 +22,8 @@ data:
     "noun.1":
     - "abx_equal"
     - "role:subject"
+    "class":
+    - "match:noun.1"
     "noun.2":
     - "abx_equal"
     - "role:object"
