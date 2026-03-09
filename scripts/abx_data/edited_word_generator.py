@@ -59,6 +59,7 @@ interchange_sets = [
     'uʊo',
     'iɪe',
     'ɛe',
+    'kg',
 ]
 
 # unidirectional edits
