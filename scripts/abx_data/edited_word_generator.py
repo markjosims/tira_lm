@@ -664,6 +664,7 @@ def main():
                 edited_words.add(edited_word)
                 edit_rows.append({
                     'word_index': index,
+                    'word': word,
                     'edited_word': edited_word,
                     'k': k,
                     'edits': str(edited_word_tokens.token_history),
