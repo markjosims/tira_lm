@@ -178,7 +178,7 @@ class AbxSentenceTriplet:
                 # we'll be replacing the target word with an edited version of the word
                 # at a later point, so keep the target clearly identified for now
                 formatted_str = formatted_str.replace(
-                    '{' + key + '}', '{' + key + ' = ' + value.word + '}'
+                    '{' + key + '}', f'{key}={value.word}'
                 )
             else:
                 formatted_str = formatted_str.replace('{' + key + '}', value.word)
