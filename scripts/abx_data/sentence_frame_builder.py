@@ -181,7 +181,7 @@ class AbxSentenceTriplet:
                     '{' + key + '}', f'{key}={value.word}'
                 )
             else:
-                formatted_str = formatted_str.replace('{' + key + '}', value.word)
+                formatted_str = formatted_str.replace('{'+key+'}', f'{key}={value.word}')
         return formatted_str
 
 def load_source_data(args: argparse.Namespace) -> Dict[str, pd.DataFrame]:
