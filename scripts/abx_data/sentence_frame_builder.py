@@ -59,15 +59,15 @@ class AbxSentenceTripletFilled(NamedTuple):
 
 @dataclass
 class AbxSentenceTriplet:
+    set_type: str
     a_template: str
     b_template: str
     x_template: str
+    word_set: str = ''
     a_slots: Dict[str, SourceWord] = field(default_factory=dict)
     b_slots: Dict[str, SourceWord] = field(default_factory=dict)
     x_slots: Dict[str, SourceWord] = field(default_factory=dict)
 
-    set_type: str
-    word_set: str = ''
 
     def items(self) -> List[Tuple[str, str, Dict[str, SourceWord]]]:
         return [
@@ -180,11 +180,11 @@ def generate_abx_frames(
     eligible_seed_words = seed_words.loc[set_type_mask]
     assert not eligible_seed_words.empty, f"No eligible seed words found for frame {frame['name']} with word set {frame['word_set']}"
     
-    member_set_ids = eligible_seed_words['member_set_id'].unique().tolist()
+    set_member_ids = eligible_seed_words['set_member_id'].unique().tolist()
     constraints = frame['constraints']
     target_constraints = constraints['$tgt']
     valid_target_combinations = get_valid_target_combinations(
-        member_set_ids,
+        set_member_ids,
         target_constraints,
     )
     sentences_with_targets = get_sentences_with_targets(
@@ -214,18 +214,20 @@ def get_sentences_with_targets(
         word_set_mask = eligible_seed_words['word_set'] == word_set
         word_set_seed_words = eligible_seed_words.loc[word_set_mask]
         for a_id, b_id, x_id in valid_target_combinations:
-            # expect exactly one word for each member_set_id in the combination
-            slot2member_set_id = {
+            # expect exactly one word for each set_member_id in the combination
+            slot2set_member_id = {
                 'a_slots': a_id,
                 'b_slots': b_id,
                 'x_slots': x_id,
             }
             slots = {}
-            for slot_name, set_member_id in slot2member_set_id.items():
-                word_mask = word_set_seed_words['member_set_id'] == set_member_id
+            for slot_name, set_member_id in slot2set_member_id.items():
+                word_mask = word_set_seed_words['set_member_id'] == set_member_id
                 words_for_slot = word_set_seed_words.loc[word_mask]
+                if words_for_slot.empty:
+                    continue
                 assert len(words_for_slot) == 1,\
-                    f"Expected exactly one word for member_set_id {set_member_id} in word set {word_set}, "\
+                    f"Expected exactly one word for set_member_id {set_member_id} in word set {word_set}, "\
                     f"but found {len(words_for_slot)}. Words: {words_for_slot['word'].tolist()}"
                 word_for_slot = words_for_slot.iloc[0]
                 word_for_slot = SourceWord(
@@ -337,7 +339,7 @@ def _get_source_words_from_dataframe(word_data: pd.DataFrame) -> List[SourceWord
             word=row['word'],
             index=index,
             source=word_data.name,
-            set_member_id=row.get('member_set_id', None),
+            set_member_id=row.get('set_member_id', None),
         )
         source_words.append(source_word)
     return source_words
@@ -439,13 +441,13 @@ def fill_single_noun_slots(
     noun_constraints = constraint_config.get(noun_tag, [])
     noun_constraints = set(noun_constraints)
     
-    noun_mask = pd.Series([True] * len(source_word_data[noun_tag]))
+    noun_mask = pd.Series([True] * len(source_word_data['noun']))
 
     role_constraint = [c for c in noun_constraints if c.startswith('role:')]
     if role_constraint:
         assert len(role_constraint) == 1, f"Expected at most one role constraint for noun slots, but found {len(role_constraint)}: {role_constraint}"
         role = role_constraint[0].split(':')[1]
-        noun_mask &= get_noun_role_mask(source_word_data[noun_tag], role)
+        noun_mask &= get_noun_role_mask(source_word_data['noun'], role)
         noun_constraints.remove(role_constraint[0])
 
     # allowed configurations for remaining constraints are:
@@ -456,10 +458,10 @@ def fill_single_noun_slots(
     if noun_constraints == {'abx_equal'}:
         new_sentence_instances = []
         for sentence in sentence_list:
-            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
-            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            word_set_mask = get_noun_word_set_mask(source_word_data['noun'], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data['noun'], sentence.set_type)
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
-            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
             nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
             new_sentence = sentence.update_data(
@@ -471,10 +473,10 @@ def fill_single_noun_slots(
     elif noun_constraints == {'ax_equal', 'ab_not_equal'}:
         new_sentence_instances = []
         for sentence in sentence_list:
-            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
-            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            word_set_mask = get_noun_word_set_mask(source_word_data['noun'], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data['noun'], sentence.set_type)
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
-            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
             nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
             for noun_ax in nouns_for_sentence:
@@ -491,10 +493,10 @@ def fill_single_noun_slots(
     elif noun_constraints == {'bx_equal', 'ax_not_equal'}:
         new_sentence_instances = []
         for sentence in sentence_list:
-            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
-            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            word_set_mask = get_noun_word_set_mask(source_word_data['noun'], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data['noun'], sentence.set_type)
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
-            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
             nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
             for noun_bx in nouns_for_sentence:
@@ -511,10 +513,10 @@ def fill_single_noun_slots(
     elif noun_constraints == {'ab_equal'}:
         new_sentence_instances = []
         for sentence in sentence_list:
-            word_set_mask = get_noun_word_set_mask(source_word_data[noun_tag], sentence.word_set)
-            set_type_mask = get_noun_set_type_mask(source_word_data[noun_tag], sentence.set_type)
+            word_set_mask = get_noun_word_set_mask(source_word_data['noun'], sentence.word_set)
+            set_type_mask = get_noun_set_type_mask(source_word_data['noun'], sentence.set_type)
             sentence_noun_mask = noun_mask & word_set_mask & set_type_mask
-            nouns_for_sentence = source_word_data[noun_tag].loc[sentence_noun_mask]
+            nouns_for_sentence = source_word_data['noun'].loc[sentence_noun_mask]
             assert len(nouns_for_sentence) > 0, f"No nouns found for sentence with word set {sentence.word_set} and set type {sentence.set_type} after applying constraints."
             nouns_for_sentence = _get_source_words_from_dataframe(nouns_for_sentence)
             for noun_ab in nouns_for_sentence:
@@ -578,12 +580,12 @@ def fill_class_slots(
             
 
 def get_valid_target_combinations(
-        member_set_ids: List[str],
+        set_member_ids: List[str],
         target_constraints: List[str],
 ) -> List[Tuple[str, str, str]]:
     """
     Get a list of words that match the constraints for the target slot.
-    words are determined to be eligible based on the 'member_set_id' column
+    words are determined to be eligible based on the 'set_member_id' column
     at present three constraint configurations are supported:
 
     1:
@@ -607,24 +609,24 @@ def get_valid_target_combinations(
     noun_case_constraints = {'ax_nom', 'b_acc'}
     noun_verb_constraints = {'ax_noun', 'b_verb'}
 
-    # generate a list of all 2-permutations of the available member_set_ids
+    # generate a list of all 2-permutations of the available set_member_ids
     if target_constraints == inequality_constraints:
         # the first element is the AX word type, and the second is the B word type
-        valid_id_combinations = list(itertools.permutations(member_set_ids, 2))
+        valid_id_combinations = list(itertools.permutations(set_member_ids, 2))
         # rearrange into the format (A, B, X)
         valid_id_combinations = [(ax, b, ax) for ax, b in valid_id_combinations]
     # only one type of combination is allowed: [nominative, accusative]
-    # first check that member_set_ids match expected values
+    # first check that set_member_ids match expected values
     elif target_constraints == noun_case_constraints:
-        assert set(member_set_ids) == {'nom', 'acc'},\
-            f"Invalid member_set_ids for noun case constraint: {member_set_ids}. "\
-            f"Expected member_set_ids are 'nom' and 'acc'."
+        assert set(set_member_ids) == {'nom', 'acc'},\
+            f"Invalid set_member_ids for noun case constraint: {set_member_ids}. "\
+            f"Expected set_member_ids are 'nom' and 'acc'."
         valid_id_combinations = [('nom', 'acc', 'nom')]
     # only one type of combination is allowed: [noun, verb]
     elif target_constraints == noun_verb_constraints:
-        assert set(member_set_ids) == {'noun', 'verb'},\
-            f"Invalid member_set_ids for noun-verb constraint: {member_set_ids}. "\
-            f"Expected member_set_ids are 'noun' and 'verb'."
+        assert set(set_member_ids) == {'noun', 'verb'},\
+            f"Invalid set_member_ids for noun-verb constraint: {set_member_ids}. "\
+            f"Expected set_member_ids are 'noun' and 'verb'."
         valid_id_combinations = [('noun', 'verb', 'noun')]
     else:
         raise ValueError(
@@ -698,3 +700,6 @@ def get_args() -> argparse.Namespace:
         default=frame_list,
     )
     return parser.parse_args()
+
+if __name__ == '__main__':
+    main()
