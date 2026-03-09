@@ -203,6 +203,7 @@ def main(cfg: DictConfig):
     # 6. Train
     trainer.evaluate()
     trainer.train()
+    trainer.save_model()
     wandb.finish()
 
 if __name__ == "__main__":
