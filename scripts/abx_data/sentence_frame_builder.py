@@ -11,6 +11,7 @@ from typing import (
 
 import yaml
 import pandas as pd
+import numpy as np
 import argparse
 from scripts.constants import (
     frame_config, frame_list, documentation_dir
@@ -41,7 +42,7 @@ class SourceWord:
     def __post_init__(self):
         if type(self.word) is not str:
             raise ValueError(f"Expected word to be of type str, but got {type(self.word)}")
-        if type(self.index) is not int:
+        if not isinstance(self.index, (int, np.integer)):
             raise ValueError(f"Expected index to be of type int, but got {type(self.index)}")
         if type(self.source) is not str:
             raise ValueError(f"Expected source to be of type str, but got {type(self.source)}")
