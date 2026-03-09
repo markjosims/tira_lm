@@ -138,9 +138,9 @@ class AbxSentenceTriplet:
 
     def fill_slots(self) -> AbxSentenceTripletFilled:
         # fill the templates for sentences A, B, and X using the slot values
-        a_sentence = self.a_template.format(**{k: v.word for k, v in self.a_slots.items()})
-        b_sentence = self.b_template.format(**{k: v.word for k, v in self.b_slots.items()})
-        x_sentence = self.x_template.format(**{k: v.word for k, v in self.x_slots.items()})
+        a_sentence = self.format_sentence(self.a_template, self.a_slots)
+        b_sentence = self.format_sentence(self.b_template, self.b_slots)
+        x_sentence = self.format_sentence(self.x_template, self.x_slots)
 
         for sentence in [a_sentence, b_sentence, x_sentence]:
             assert '{' not in sentence and '}' not in sentence,\
@@ -154,6 +154,17 @@ class AbxSentenceTriplet:
             set_type=self.set_type,
             word_set=self.word_set,
         )
+
+    def format_sentence(self, template_str: str, slots: Dict[str, SourceWord]) -> str:
+        """
+        Replace the slot placeholders in the template string with the
+        corresponding words from the slots dict. Use `str.replace` as
+        `str.format` does not work well with slot names containing punctuation
+        """
+        formatted_str = template_str
+        for key, value in slots.items():
+            formatted_str = formatted_str.replace('{' + key + '}', value.word)
+        return formatted_str
 
 def load_source_data(args: argparse.Namespace) -> Dict[str, pd.DataFrame]:
     # load all csv files in documentation directory
