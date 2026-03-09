@@ -79,9 +79,18 @@ class AbxSentenceTriplet:
     b_template: str
     x_template: str
     word_set: str = ''
-    a_slots: Dict[str, SourceWord] = field(default_factory=SlotDict)
-    b_slots: Dict[str, SourceWord] = field(default_factory=SlotDict)
-    x_slots: Dict[str, SourceWord] = field(default_factory=SlotDict)
+    a_slots: SlotDict = field(default_factory=SlotDict)
+    b_slots: SlotDict = field(default_factory=SlotDict)
+    x_slots: SlotDict = field(default_factory=SlotDict)
+
+    def __post_init__(self):
+        # check that all slots are SlotDict instances
+        if not isinstance(self.a_slots, SlotDict):
+            raise ValueError(f"Expected a_slots to be of type SlotDict, but got {type(self.a_slots)}")
+        if not isinstance(self.b_slots, SlotDict):
+            raise ValueError(f"Expected b_slots to be of type SlotDict, but got {type(self.b_slots)}")
+        if not isinstance(self.x_slots, SlotDict):
+            raise ValueError(f"Expected x_slots to be of type SlotDict, but got {type(self.x_slots)}")
 
 
     def items(self) -> List[Tuple[str, str, Dict[str, SourceWord]]]:
