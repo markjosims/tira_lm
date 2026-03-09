@@ -38,6 +38,16 @@ class SourceWord:
     source: str
     set_member_id: Optional[str] = None
 
+    def __post_init__(self):
+        if type(self.word) is not str:
+            raise ValueError(f"Expected word to be of type str, but got {type(self.word)}")
+        if type(self.index) is not int:
+            raise ValueError(f"Expected index to be of type int, but got {type(self.index)}")
+        if type(self.source) is not str:
+            raise ValueError(f"Expected source to be of type str, but got {type(self.source)}")
+        if self.set_member_id is not None and type(self.set_member_id) is not str:
+            raise ValueError(f"Expected set_member_id to be of type str, but got {type(self.set_member_id)}")
+
     def __str__(self):
         return self.word
 
