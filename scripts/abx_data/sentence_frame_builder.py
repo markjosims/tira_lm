@@ -41,6 +41,15 @@ class SourceWord:
     def __str__(self):
         return self.word
 
+class SlotDict(dict):
+    def __set__(self, key, value):
+        """
+        Check value is a SourceWord before setting the slot value
+        """
+        if not isinstance(value, SourceWord):
+            raise ValueError(f"Expected value of type SourceWord, but got {type(value)}")
+        super().__setitem__(key, value)
+
 class AbxSentenceTripletFilled(NamedTuple):
     a_sentence: str
     b_sentence: str
@@ -64,9 +73,9 @@ class AbxSentenceTriplet:
     b_template: str
     x_template: str
     word_set: str = ''
-    a_slots: Dict[str, SourceWord] = field(default_factory=dict)
-    b_slots: Dict[str, SourceWord] = field(default_factory=dict)
-    x_slots: Dict[str, SourceWord] = field(default_factory=dict)
+    a_slots: Dict[str, SourceWord] = field(default_factory=SlotDict)
+    b_slots: Dict[str, SourceWord] = field(default_factory=SlotDict)
+    x_slots: Dict[str, SourceWord] = field(default_factory=SlotDict)
 
 
     def items(self) -> List[Tuple[str, str, Dict[str, SourceWord]]]:
