@@ -151,23 +151,23 @@ def generate_sentences_for_frame(frame_row, edited_word_df) -> List[Dict[str, st
             logging.warning(f"No edited words found for target '{sentence_a_target}' with k={k}")
             continue
         try:
-            target_a_edited, target_b_edited, target_x_edited = sample_abx(edited_word_df, target_ax_mask, target_b_mask, candidate_a_rows)
+            word_a, word_b, word_x = sample_abx(edited_word_df, target_ax_mask, target_b_mask, candidate_a_rows)
         except ValueError as e:
             logging.warning(f"Error occurred while sampling ABX triplets for target '{sentence_a_target}' with k={k}: {e}")
             continue
 
-        sentence_a = frame_row['sentence_a'].replace(f"[$tgt={sentence_a_target}]", target_a_edited)
-        sentence_b = frame_row['sentence_b'].replace(f"[$tgt={sentence_b_target}]", target_b_edited)
-        sentence_x = frame_row['sentence_x'].replace(f"[$tgt={sentence_x_target}]", target_x_edited)
+        sentence_a = frame_row['sentence_a'].replace(f"[$tgt={sentence_a_target}]", word_a)
+        sentence_b = frame_row['sentence_b'].replace(f"[$tgt={sentence_b_target}]", word_b)
+        sentence_x = frame_row['sentence_x'].replace(f"[$tgt={sentence_x_target}]", word_x)
 
         row_data = frame_row.to_dict()
         row_data.update({
             'sentence_a': sentence_a,
             'sentence_b': sentence_b,
             'sentence_x': sentence_x,
-            'sentence_a_target': sentence_a_target,
-            'sentence_b_target': sentence_b_target,
-            'sentence_x_target': sentence_x_target,
+            'word_a': word_a,
+            'word_b': word_b,
+            'word_x': word_x,
             'k': k,
         })
         frame_sentences.append(row_data)
