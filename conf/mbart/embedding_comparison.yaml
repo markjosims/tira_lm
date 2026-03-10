@@ -1,10 +1,11 @@
 model:
   name: "facebook/mbart-large-50-many-to-many-mmt"
-  local_path: "./scripts/training/outputs/mbart/translation"
+  local_path: "../training/outputs/mbart/translation/model"
   max_length: 128
+  device: 'cuda'
 
 data:
-  path: "data/abx_sentences.csv"
+  path: "../../data/abx_sentences.csv"
   task:
     format: "ABX"
     src_lang_code: "sw_KE"
