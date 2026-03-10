@@ -13,7 +13,7 @@ data:
     tgt_lang_code: "en_XX"
 
 training:
-  output_dir: './outputs'
+  output_dir: './outputs/mbart/translation'
   learning_rate: 2e-5
   batch_size: 16
   grad_acc: 2

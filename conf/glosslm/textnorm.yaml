@@ -19,7 +19,7 @@ data:
       Glosses: """
 
 training:
-  output_dir: "./outputs"
+  output_dir: "./outputs/glosslm/textnorm"
   learning_rate: 3e-4
   batch_size: 8
   grad_acc: 4
