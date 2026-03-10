@@ -1,5 +1,5 @@
 """
-Inference script for generating contextual word embeddings for ABX
+Inference script for generating contextual word embeddings for Abx
 sentences and computing distance metrics between them.
 """
 
@@ -17,8 +17,8 @@ from torch.utils.data import DataLoader, Dataset
 from torch.nn import functional as F
 from scripts.constants import abx_sentence_list
 
-class ABXDataset(Dataset):
-    def __init__(self, df, text_columns):
+class AbxDataset(Dataset):
+    def __init__(self, data: Dict[str, torch.Tensor], text_columns):
         self.df = df
         self.text_columns = text_columns
 
@@ -28,7 +28,7 @@ class ABXDataset(Dataset):
     def __getitem__(self, idx):
         item = {}
         for col in self.text_columns:
-            item[col] = self.df.iloc[idx][col+'_tokenized']
+            item[col] = torch.tensor(self.df.iloc[idx][col+'_tokenized'])
         return item
     
 def get_word_token_indices(sentence_tokens, word_tokens):
@@ -106,16 +106,18 @@ def main(cfg: DictConfig):
         'sentence_a', 'sentence_b', 'sentence_x',
         'word_a', 'word_b', 'word_x',
     ]
-    for col in text_columns:
-        df[col+'_tokenized'] = tokenizer(
-            df[col].tolist(),
+    token_columns = [col+'_tokenized' for col in text_columns]
+
+    data = df.to_dict()
+    for textcol, tokencol in zip(text_columns, token_columns):
+        data[tokencol] = tokenizer(
+            data[textcol],
             return_tensors='pt',
             truncation=True,
             padding='max_length',
-            max_length=cfg.model.max_length
-        )['input_ids'].tolist()
-
-    dataset = ABXDataset(df, text_columns)
+            max_length=cfg.model.max_length,
+        )['input_ids']
+    dataset = AbxDataset(data, text_columns)
     dataloader = DataLoader(dataset, batch_size=cfg.inference.batch_size)
     
     # 5. Compute Embeddings and Distances
