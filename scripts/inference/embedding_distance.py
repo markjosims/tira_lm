@@ -49,6 +49,8 @@ def get_word_token_indices(sentence_tokens, word_tokens):
             indices.extend(range(i, i+len(word_tokens)))
             found_word = True
 
+    if not found_word:
+        raise ValueError("Word tokens not found in the sentence.")
     return indices
 
 def get_batch_embeddings(model, batch):
