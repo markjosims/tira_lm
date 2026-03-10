@@ -203,7 +203,11 @@ def main(cfg: DictConfig):
     # 6. Train
     trainer.evaluate()
     trainer.train()
-    trainer.save_model()
+
+    # save model separate from checkpoints for better organization
+    print("Saving final model...")
+    model_save_dir = os.path.join(cfg.training.output_dir, "model")
+    trainer.save_model(model_save_dir)
     wandb.finish()
 
 if __name__ == "__main__":
