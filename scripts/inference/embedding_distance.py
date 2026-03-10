@@ -15,12 +15,23 @@ from transformers import (
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 from torch.nn import functional as F
-from scripts.constants import abx_sentence_list
+from scripts.constants import abx_sentence_list, device
+from typing import List
 
 class AbxDataset(Dataset):
-    def __init__(self, data: Dict[str, torch.Tensor], text_columns):
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        text_columns: List[str],
+        tokenizer: AutoTokenizer,
+        max_length: int,
+        device: torch.device = torch.device('cpu'),
+    ):
         self.df = df
         self.text_columns = text_columns
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.device = device
 
     def __len__(self):
         return len(self.df)
@@ -28,7 +39,15 @@ class AbxDataset(Dataset):
     def __getitem__(self, idx):
         item = {}
         for col in self.text_columns:
-            item[col] = torch.tensor(self.df.iloc[idx][col+'_tokenized'])
+            item[col] = self.tokenizer(
+                self.df.iloc[idx][col],
+                return_tensors='pt',
+                truncation=True,
+                padding='max_length',
+                max_length=self.max_length,
+            )['input_ids']
+            # remove batch dimension and move to device
+            item[col] = item[col].squeeze(0).to(self.device) 
         return item
     
 def get_word_token_indices(sentence_tokens, word_tokens):
@@ -63,6 +82,7 @@ def get_batch_embeddings(model, batch):
     for item in ['a', 'b', 'x']:
         sentence = 'sentence_' + item
         word = 'word_' + item
+        breakpoint()
         outputs = model(input_ids=batch[sentence])
         sentence_embeddings = outputs.encoder_last_hidden_state
         batch_embeddings = []
@@ -88,39 +108,46 @@ def score_batch(model, batch):
     scores = a_x_similarity > b_x_similarity
     return scores, a_x_similarity, b_x_similarity
 
-
 @hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="embedding_comparison")
 def main(cfg: DictConfig):
-    # 1. Setup WandB
+    # Setup WandB
+    print(f"Using WandB project: {cfg.wandb.project}")
     os.environ["WANDB_PROJECT"] = cfg.wandb.project
     
-    # 2. Load Model & Tokenizer
+    # Load Model & Tokenizer
+    print(f"Loading model and tokenizer from: {cfg.model.local_path}")
+    print(f"For base model {cfg.model.name}")
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.local_path)
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.local_path)
 
-    # 3. Load Dataset
-    df = pd.read_csv(cfg.data.path or abx_sentence_list)
+    # Put model to device
+    if hasattr(cfg.model, 'device'):
+        device = torch.device(cfg.model.device)
+    model.to(device)
 
-    # 4. Tokenize Dataset and define DataLoader
+    # Load Dataset
+    data_path = getattr(cfg.data, 'path', None) or abx_sentence_list
+    print(f"Loading dataset from: {data_path}")
+    df = pd.read_csv(data_path)
+
+    # Tokenize Dataset and define DataLoader
+    print("Initializing dataset and dataloader...")
     text_columns = [
         'sentence_a', 'sentence_b', 'sentence_x',
         'word_a', 'word_b', 'word_x',
     ]
-    token_columns = [col+'_tokenized' for col in text_columns]
 
-    data = df.to_dict()
-    for textcol, tokencol in zip(text_columns, token_columns):
-        data[tokencol] = tokenizer(
-            data[textcol],
-            return_tensors='pt',
-            truncation=True,
-            padding='max_length',
-            max_length=cfg.model.max_length,
-        )['input_ids']
-    dataset = AbxDataset(data, text_columns)
+    dataset = AbxDataset(
+        df,
+        text_columns,
+        tokenizer,
+        cfg.model.max_length,
+        device=device,
+    )
     dataloader = DataLoader(dataset, batch_size=cfg.inference.batch_size)
     
-    # 5. Compute Embeddings and Distances
+    # Compute Embeddings and Distances
+    print("Computing embeddings and distances...")
 
     all_scores = []
     all_a_x_similarities = []
