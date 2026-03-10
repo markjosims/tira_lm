@@ -8,7 +8,6 @@ import torch
 import wandb
 import os
 from omegaconf import DictConfig, OmegaConf
-from datasets import load_dataset
 from transformers import (
     AutoTokenizer, 
     AutoModelForSeq2SeqLM, 
@@ -16,6 +15,7 @@ from transformers import (
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 from torch.nn import functional as F
+from scripts.constants import abx_sentence_list
 
 class ABXDataset(Dataset):
     def __init__(self, df, text_columns):
@@ -93,11 +93,11 @@ def main(cfg: DictConfig):
     os.environ["WANDB_PROJECT"] = cfg.wandb.project
     
     # 2. Load Model & Tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model.name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.name)
+    tokenizer = AutoTokenizer.from_pretrained(cfg.model.local_path)
+    model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.local_path)
 
     # 3. Load Dataset
-    df = pd.read_csv(cfg.data.path)
+    df = pd.read_csv(cfg.data.path or abx_sentence_list)
 
     # 4. Tokenize Dataset and define DataLoader
     text_columns = [
@@ -111,7 +111,7 @@ def main(cfg: DictConfig):
             truncation=True,
             padding='max_length',
             max_length=cfg.model.max_length
-        )['input_ids']
+        )['input_ids'].tolist()
 
     dataset = ABXDataset(df, text_columns)
     dataloader = DataLoader(dataset, batch_size=cfg.inference.batch_size)
@@ -138,3 +138,6 @@ def main(cfg: DictConfig):
         'a_x_similarity': all_a_x_similarities.mean().item(),
         'b_x_similarity': all_b_x_similarities.mean().item(),
     })
+
+if __name__ == '__main__':
+    main()
