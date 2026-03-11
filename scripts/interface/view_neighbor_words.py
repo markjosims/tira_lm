@@ -45,10 +45,11 @@ def main():
     distance_matrix_stem = os.path.splitext(os.path.basename(args.distance_matrix))[0]
     hits.to_csv(f'{word}_{distance_matrix_stem}_hits.csv', index=False)
 
-
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--word', '-w')
     parser.add_argument('--distance_matrix', '-d')
     return parser.parse_args()
+
+if __name__ == '__main__':
+    main()
