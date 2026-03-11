@@ -10,11 +10,17 @@ def get_encoder_outputs(model, inputs) -> torch.Tensor:
     """
     if hasattr(model, 'encoder'):
         with torch.no_grad():
-            outputs = model.encoder(**inputs)
+            outputs = model.encoder(
+                input_ids=inputs['input_ids'],
+                attention_mask=inputs['attention_mask']
+            )
         encoder_out = outputs.last_hidden_state.to('cpu')
     else:
         with torch.no_grad():
-            outputs = model(**inputs)
+            outputs = model(
+                input_ids=inputs['input_ids'],
+                attention_mask=inputs['attention_mask']
+            )
         encoder_out = outputs.encoder_last_hidden_state.to('cpu')
     del outputs
     return encoder_out
