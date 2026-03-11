@@ -61,7 +61,7 @@ class AbxDataset(Dataset):
             item[col] = word_range
         return item
 
-class HybridDataLoader(DataLoader):
+class HybridDataLoader:
     """
     Custom DataLoader that yields batches of Torch tensors along with the
     corresponding string literals from the original dataset. This allows us to
@@ -80,7 +80,7 @@ class HybridDataLoader(DataLoader):
                 "Shuffling is not supported in HybridDataLoader to maintain alignment between"\
                 " tensors and strings."
             )
-        super().__init__(
+        self.dataloader = DataLoader(
             torch_dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -91,14 +91,17 @@ class HybridDataLoader(DataLoader):
         self.batch_size = batch_size
         self.string_dataset = string_dataset
 
+    def __len__(self):
+        return len(self.dataloader)
+
     def __iter__(self):
-        for i, batch in enumerate(super().__iter__()):
+        for i, batch in enumerate(self.dataloader):
             start_idx = i * self.batch_size
             end_idx = start_idx + self.batch_size
             string_batch = self.string_dataset.iloc[start_idx:end_idx]
             string_batch = string_batch.to_dict(orient='list')
             batch['strings'] = string_batch
-            yield batch, string_batch
+            yield batch
 
     @staticmethod
     def collate_batch(
@@ -194,7 +197,7 @@ def get_batch_embeddings(model, tokenizer, batch):
         del outputs
         batch_embeddings = []
         batch_size = batch[sentence]['input_ids'].shape[0]
-        for i in tqdm(range(batch_size), total=batch_size):
+        for i in range(batch_size):
             word_token_indices = get_word_token_indices(i, batch, item, tokenizer)
             record_embeddings = sentence_embeddings[i].squeeze()
             word_embedding = record_embeddings[word_token_indices].mean(dim=0)
