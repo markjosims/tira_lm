@@ -4,7 +4,7 @@ model:
   device: 'cuda'
   embed_dim: 'auto'
 data:
-  embed_path: "./outputs/mbart/translation/embeds/abx_word_embeddings.pt"
+  embed_path: "../inference/outputs/mbart/translation/embeds/abx_word_embeddings.pt"
 training:
   kfold:
     kind: "default" # could also use repeated, stratified, etc...
