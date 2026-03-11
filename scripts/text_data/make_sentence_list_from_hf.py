@@ -3,9 +3,11 @@ import os
 import pandas as pd
 import re
 import argparse
+from scripts.constants import (
+    tira_sentence_list, tira_word_list,
+    word2sentence_list, dataset_uri,
+)
 
-dataset_uri = 'tira-parsing/tira-parsing'
-sentences_list = 'data/sentences.csv'
 
 def preprocess_transcription(sentence: str, _):
     """
@@ -77,10 +79,37 @@ def main():
     df=df.set_index('index')
     df.to_csv(args.sentences_list, index=True)
 
+    print(
+        f"Writing unique words to {args.words_list} "\
+        " and word2sentence mapping to {args.word2sentence_list}..."
+    )
+    # use list rather than set to preserve order of first occurrence of words
+    unique_words = []
+    word2sentence_rows = []
+    for sentence_index, row in df.iterrows():
+        sentence = row['sentence']
+        for word in sentence.split():
+            if word not in unique_words:
+                unique_words.append(word)
+                word_index = len(unique_words) - 1
+            else:
+                word_index = unique_words.index(word)
+            word2sentence_rows.append({
+                'word_index': word_index,
+                'sentence_index': sentence_index,
+            })
+
+    unique_words_df = pd.DataFrame({'word': unique_words})
+    unique_words_df.to_csv(args.words_list, index_label='word_index')
+    word2sentence_df = pd.DataFrame(word2sentence_rows)
+    word2sentence_df.to_csv(args.word2sentence_list, index=False)
+
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Make sentence list from Hugging Face dataset')
     parser.add_argument('--dataset_uri', type=str, default=dataset_uri, help='Hugging Face dataset URI')
-    parser.add_argument('--sentences_list', type=str, default=sentences_list, help='Path to output sentences list CSV file')
+    parser.add_argument('--sentences_list', type=str, default=tira_sentence_list, help='Path to output sentences list CSV file')
+    parser.add_argument('--words_list', type=str, default=tira_word_list, help='Path to output words list CSV file')
+    parser.add_argument('--word2sentence_list', type=str, default=word2sentence_list, help='Path to output word2sentence list CSV file')
     parser.add_argument(
         '--include_parentheticals',
         action='store_true',
