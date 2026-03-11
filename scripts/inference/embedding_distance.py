@@ -22,13 +22,15 @@ class AbxDataset(Dataset):
     def __init__(
         self,
         df: pd.DataFrame,
-        text_columns: List[str],
+        sentence_columns: List[str],
+        word_columns: List[str],
         tokenizer: AutoTokenizer,
         max_length: int,
         device: torch.device = torch.device('cpu'),
     ):
         self.df = df
-        self.text_columns = text_columns
+        self.sentence_columns = sentence_columns
+        self.word_columns = word_columns
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.device = device
@@ -38,39 +40,45 @@ class AbxDataset(Dataset):
 
     def __getitem__(self, idx):
         item = {}
-        for col in self.text_columns:
+        for col in self.sentence_columns:
             item[col] = self.tokenizer(
                 self.df.iloc[idx][col],
                 return_tensors='pt',
                 truncation=True,
                 padding='max_length',
                 max_length=self.max_length,
-            )['input_ids']
-            # remove batch dimension and move to device
-            item[col] = item[col].squeeze(0).to(self.device) 
+            ).to(self.device)
+        for col in self.word_columns:
+            slice_str = self.df.iloc[idx][col]
+            start_index, end_index = slice_str.split(':')
+            start_index, end_index = int(start_index), int(end_index)
+            word_range = torch.tensor([start_index, end_index], device=self.device)
+            item[col] = word_range
+        breakpoint()
         return item
+
+def collate_batch(batch_list: List[Dict[str, Any]]):
+    ...
     
-def get_word_token_indices(sentence_tokens, word_tokens):
+def get_word_token_indices(token_encoding, word_range):
     """
     Get the indices of the word tokens within the sentence tokens.
     Checks that the word tokens are a contiguous subsequence of the
     sentence tokens and that they only occur once.
     """
-    sentence_tokens = sentence_tokens.tolist()
-    word_tokens = word_tokens.tolist()
-    
-    found_word = False
-    indices = []
-    for i in range(len(sentence_tokens) - len(word_tokens) + 1):
-        if sentence_tokens[i:i+len(word_tokens)] == word_tokens:
-            if found_word:
-                raise ValueError("Word tokens occur multiple times in the sentence.")
-            indices.extend(range(i, i+len(word_tokens)))
-            found_word = True
+    word_start, word_end = word_range
+    word_ids = token_encoding.word_ids
+    target_word_indices = []
+    for i, word_id in enumerate(word_ids):
+        if word_id is None:
+            continue
+        if (word_id >= word_start) and (word_id <= word_end):
+            target_word_indices.append(i)
 
-    if not found_word:
+    if not target_word_indices:
         raise ValueError("Word tokens not found in the sentence.")
-    return indices
+
+    return target_word_indices
 
 def get_batch_embeddings(model, batch):
     """
@@ -81,16 +89,18 @@ def get_batch_embeddings(model, batch):
     embeddings = {}
     for item in ['a', 'b', 'x']:
         sentence = 'sentence_' + item
-        word = 'word_' + item
-        breakpoint()
-        outputs = model(input_ids=batch[sentence])
+        word_idx = f'word_{item}_index'
+        with torch.no_grad():
+            outputs = model(input_ids=batch[sentence]['input_ids'].squeeze())
         sentence_embeddings = outputs.encoder_last_hidden_state
         batch_embeddings = []
-        for sentence_embeddings, sentence_tokens, word_tokens in zip(
-            sentence_embeddings, batch[sentence], batch[word]
-        ):
-            word_token_indices = get_word_token_indices(sentence_tokens, word_tokens)
-            word_embedding = sentence_embeddings[word_token_indices].mean(dim=0)
+        for i, word_indices in enumerate(batch[word_idx]):
+            breakpoint()
+            # TODO: only one batch encoding is getting returned per batch of 64! investigate
+            token_encoding = batch[sentence][i]
+            word_token_indices = get_word_token_indices(token_encoding, word_indices)
+            record_embeddings = sentence_embeddings[i].squeeze()
+            word_embedding = record_embeddings[word_token_indices].mean(dim=0)
             batch_embeddings.append(word_embedding)
         embeddings[item] = torch.stack(batch_embeddings)
     return embeddings
@@ -124,6 +134,7 @@ def main(cfg: DictConfig):
     if hasattr(cfg.model, 'device'):
         device = torch.device(cfg.model.device)
     model.to(device)
+    model.eval()
 
     # Load Dataset
     data_path = getattr(cfg.data, 'path', None) or abx_sentence_list
@@ -132,14 +143,17 @@ def main(cfg: DictConfig):
 
     # Tokenize Dataset and define DataLoader
     print("Initializing dataset and dataloader...")
-    text_columns = [
+    sentence_columns = [
         'sentence_a', 'sentence_b', 'sentence_x',
-        'word_a', 'word_b', 'word_x',
+    ]
+    word_columns = [
+        'word_a_index', 'word_b_index', 'word_x_index',
     ]
 
     dataset = AbxDataset(
         df,
-        text_columns,
+        sentence_columns,
+        word_columns,
         tokenizer,
         cfg.model.max_length,
         device=device,
