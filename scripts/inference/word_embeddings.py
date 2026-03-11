@@ -60,12 +60,9 @@ def main(cfg: DictConfig):
 
     word_embeddings = []
     for batch in tqdm(dataloader):
-        input_ids = batch['input_ids']
-        attention_mask = batch['attention_mask']
-
         with torch.no_grad():
-            encoder_outputs = get_encoder_outputs(model, input_ids, attention_mask)
-        
+            encoder_outputs = get_encoder_outputs(model, batch)
+
         word_embeddings.append(encoder_outputs.cpu())
         
     # Save embeddings locally
