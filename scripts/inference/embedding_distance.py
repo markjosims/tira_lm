@@ -61,25 +61,65 @@ class AbxDataset(Dataset):
             item[col] = word_range
         return item
 
-def collate_batch(
-        batch_list: List[Dict[str, Any]]
-) -> Dict[str, Union[BatchEncoding, torch.Tensor]]:
-    collated_batch = {}
-    for key in batch_list[0].keys():
-        # sentence_(abx) and word_(abx)
-        if key.startswith('sentence_') or (key.startswith('word_') and not key.endswith('_index')):
-            data = {
-                'input_ids': torch.stack([item[key]['input_ids'].squeeze() for item in batch_list]),
-                'attention_mask': torch.stack([item[key]['attention_mask'].squeeze() for item in batch_list]),
-            }
-            encodings = None
-            if hasattr(batch_list[0][key], 'encodings') and batch_list[0][key].encodings:
-                encodings = [item[key].encodings[0] for item in batch_list]
-            collated_batch[key] = BatchEncoding(data=data, encoding=encodings)
-        # word_(abx)_index
-        else:
-            collated_batch[key] = torch.stack([item[key] for item in batch_list])
-    return collated_batch
+class HybridDataLoader(DataLoader):
+    """
+    Custom DataLoader that yields batches of Torch tensors along with the
+    corresponding string literals from the original dataset. This allows us to
+    compute embeddings using the tensors while also having access to the original
+    sentences and words.
+    """
+    def __init__(
+            self,
+            torch_dataset,
+            string_dataset: pd.DataFrame,
+            batch_size: int,
+            **kwargs
+    ):
+        if shuffle := kwargs.get('shuffle', False):
+            raise ValueError(
+                "Shuffling is not supported in HybridDataLoader to maintain alignment between"\
+                " tensors and strings."
+            )
+        super().__init__(
+            torch_dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            collate_fn=HybridDataLoader.collate_batch,
+            **kwargs
+        )
+
+        self.batch_size = batch_size
+        self.string_dataset = string_dataset
+
+    def __iter__(self):
+        for i, batch in enumerate(super().__iter__()):
+            start_idx = i * self.batch_size
+            end_idx = start_idx + self.batch_size
+            string_batch = self.string_dataset.iloc[start_idx:end_idx]
+            string_batch = string_batch.to_dict(orient='list')
+            batch['strings'] = string_batch
+            yield batch, string_batch
+
+    @staticmethod
+    def collate_batch(
+            batch_list: List[Dict[str, Any]]
+    ) -> Dict[str, Union[BatchEncoding, torch.Tensor]]:
+        collated_batch = {}
+        for key in batch_list[0].keys():
+            # sentence_(abx) and word_(abx)
+            if key.startswith('sentence_') or (key.startswith('word_') and not key.endswith('_index')):
+                data = {
+                    'input_ids': torch.stack([item[key]['input_ids'].squeeze() for item in batch_list]),
+                    'attention_mask': torch.stack([item[key]['attention_mask'].squeeze() for item in batch_list]),
+                }
+                encodings = None
+                if hasattr(batch_list[0][key], 'encodings') and batch_list[0][key].encodings:
+                    encodings = [item[key].encodings[0] for item in batch_list]
+                collated_batch[key] = BatchEncoding(data=data, encoding=encodings)
+            # word_(abx)_index
+            else:
+                collated_batch[key] = torch.stack([item[key] for item in batch_list])
+        return collated_batch
     
 def get_word_token_indices(batch_index, batch, record_type, tokenizer):
     """
@@ -94,11 +134,13 @@ def get_word_token_indices(batch_index, batch, record_type, tokenizer):
     if batch[sentence_key].encodings is None:
         assert not tokenizer.is_fast,\
         "Tokenizer does not provide encodings but is a fast tokenizer, check tokenizer configuration."
+        sentence = batch['strings'][sentence_key][batch_index]
+        word = batch['strings'][word_key][batch_index]
         return get_word_token_indices_slow_tokenizer(sentence, word)
     
-    sentence_tokens = batch[sentence_key].encoding[batch_index].tokens
+    sentence_encoding = batch[sentence_key].encoding[batch_index]
     word_range = batch[word_index_key][batch_index].tolist()
-    return get_word_token_indices_fast_tokenizer(batch.encoding[batch_index], word_range)    
+    return get_word_token_indices_fast_tokenizer(sentence_encoding, word_range)    
 
 def get_word_token_indices_slow_tokenizer(sentence, word) -> List[int]:
     """
@@ -141,6 +183,7 @@ def get_batch_embeddings(model, tokenizer, batch):
     get contextual word embeddings by averaging the token embeddings
     for the word tokens.
     """
+
     embeddings = {}
     for item in ['a', 'b', 'x']:
         sentence = 'sentence_' + item
@@ -198,8 +241,6 @@ def main(cfg: DictConfig):
 
     # Tokenize Dataset and define DataLoader
     print("Initializing dataset and dataloader...")
-    # TODO: define custom DataLoader class that provisions Torch tensors
-    # along with string literals
     sentence_columns = []
     word_columns = []
     word_index_columns = []
@@ -217,11 +258,10 @@ def main(cfg: DictConfig):
         cfg.model.max_length,
         device=device,
     )
-    dataloader = DataLoader(
-        dataset,
+    dataloader = HybridDataLoader(
+        torch_dataset=dataset,
+        string_dataset=df,
         batch_size=cfg.inference.batch_size,
-        collate_fn=collate_batch,
-        shuffle=False,
     )
     
     # Compute Embeddings and Distances
