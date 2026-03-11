@@ -4,6 +4,7 @@ scikit-learn
 transformers
 datasets
 torch
+torchmetrics
 hydra-core
 wandb
 omegaconf
