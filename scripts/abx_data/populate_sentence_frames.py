@@ -21,9 +21,8 @@ import Levenshtein
 log_level = os.environ.get('PYTHON_LOG_LEVEL', 'DEBUG')
 logging.basicConfig(level=log_level)
 
-seed = os.environ.get('RANDOM_SEED', random_seed)
-random.seed(seed)
-np.random.seed(seed)
+random.seed(random_seed)
+np.random.seed(random_seed)
 
 levenshtein_cache: Dict[Tuple[str, str], int] = {}
 

@@ -14,5 +14,5 @@ abx_sentence_list = os.path.abspath('data/abx_sentences.csv')
 parenthetical_list = os.path.abspath('doc/parentheticals.tsv')
 
 # misc
-random_seed = 42
+random_seed = os.environ.get('RANDOM_SEED', 42)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

@@ -18,8 +18,7 @@ import unicodedata
 log_level = os.environ.get('PYTHON_LOG_LEVEL', 'DEBUG')
 logging.basicConfig(level=log_level)
 
-seed = os.environ.get('RANDOM_SEED', random_seed)
-random.seed(seed)
+random.seed(random_seed)
 
 """
 phoneme constants
