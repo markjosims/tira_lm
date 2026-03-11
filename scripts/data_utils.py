@@ -47,6 +47,54 @@ class AbxDataset(Dataset):
             item[col] = word_range
         return item
 
+    @staticmethod
+    def collate_batch(
+            batch_list: List[Dict[str, Any]]
+    ) -> Dict[str, Union[BatchEncoding, torch.Tensor]]:
+        collated_batch = {}
+        for key in batch_list[0].keys():
+            # sentence_(abx) and word_(abx)
+            if key.startswith('sentence_') or (key.startswith('word_') and not key.endswith('_index')):
+                data = {
+                    'input_ids': torch.stack([item[key]['input_ids'].squeeze() for item in batch_list]),
+                    'attention_mask': torch.stack([item[key]['attention_mask'].squeeze() for item in batch_list]),
+                }
+                encodings = None
+                if hasattr(batch_list[0][key], 'encodings') and batch_list[0][key].encodings:
+                    encodings = [item[key].encodings[0] for item in batch_list]
+                collated_batch[key] = BatchEncoding(data=data, encoding=encodings)
+            # word_(abx)_index
+            else:
+                collated_batch[key] = torch.stack([item[key] for item in batch_list])
+        return collated_batch
+    
+class TextDataset(Dataset):
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        text_col: str,
+        tokenizer: AutoTokenizer,
+        max_length: int,
+        device: torch.device = device,
+    ):
+        self.df = df
+        self.text_col = text_col
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.device = device
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        return self.tokenizer(
+            self.df.iloc[idx][self.text_col],
+            return_tensors='pt',
+            truncation=True,
+                padding='max_length',
+                max_length=self.max_length,
+        ).to(self.device)
+
 class EmbeddingDataset(Dataset):
     """
     Dataset for storing pre-computed embeddings.
@@ -110,6 +158,7 @@ class HybridDataLoader:
             torch_dataset,
             string_dataset: pd.DataFrame,
             batch_size: int,
+            collate_fn=None,
             **kwargs
     ):
         if shuffle := kwargs.get('shuffle', False):
@@ -117,11 +166,15 @@ class HybridDataLoader:
                 "Shuffling is not supported in HybridDataLoader to maintain alignment between"\
                 " tensors and strings."
             )
+
+        if isinstance(torch_dataset, AbxDataset):
+            collate_fn = AbxDataset.collate_batch
+
         self.dataloader = DataLoader(
             torch_dataset,
             batch_size=batch_size,
             shuffle=shuffle,
-            collate_fn=HybridDataLoader.collate_batch,
+            collate_fn=collate_fn,
             **kwargs
         )
 
@@ -139,24 +192,3 @@ class HybridDataLoader:
             string_batch = string_batch.to_dict(orient='list')
             batch['strings'] = string_batch
             yield batch
-
-    @staticmethod
-    def collate_batch(
-            batch_list: List[Dict[str, Any]]
-    ) -> Dict[str, Union[BatchEncoding, torch.Tensor]]:
-        collated_batch = {}
-        for key in batch_list[0].keys():
-            # sentence_(abx) and word_(abx)
-            if key.startswith('sentence_') or (key.startswith('word_') and not key.endswith('_index')):
-                data = {
-                    'input_ids': torch.stack([item[key]['input_ids'].squeeze() for item in batch_list]),
-                    'attention_mask': torch.stack([item[key]['attention_mask'].squeeze() for item in batch_list]),
-                }
-                encodings = None
-                if hasattr(batch_list[0][key], 'encodings') and batch_list[0][key].encodings:
-                    encodings = [item[key].encodings[0] for item in batch_list]
-                collated_batch[key] = BatchEncoding(data=data, encoding=encodings)
-            # word_(abx)_index
-            else:
-                collated_batch[key] = torch.stack([item[key] for item in batch_list])
-        return collated_batch
