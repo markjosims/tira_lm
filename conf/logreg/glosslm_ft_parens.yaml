@@ -1,0 +1,17 @@
+model:
+  name: "lecslab/glosslm"
+  local_path: "../training/outputs/glosslm/translation_parens/model"
+  device: 'cuda'
+  embed_dim: 'auto'
+data:
+  embed_path: "../inference/outputs/glosslm/translation_parens/embeds/abx_word_embeddings.pt"
+training:
+  kfold:
+    kind: "default" # could also use repeated, stratified, etc...
+    k: 10
+  max_iter: 100
+outputs:
+  save_dir: "./outputs/logreg/glosslm_ft.pkl"
+wandb:
+  project: "Tira-LM"
+  run_name: "glosslm-ft-parens-logreg"

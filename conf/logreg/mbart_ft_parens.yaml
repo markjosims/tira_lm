@@ -1,0 +1,17 @@
+model:
+  name: "facebook/mbart-large-50-many-to-many-mmt"
+  local_path: "../training/outputs/mbart/translation_parens/model"
+  device: 'cuda'
+  embed_dim: 'auto'
+data:
+  embed_path: "../inference/outputs/mbart/translation_parens/embeds/abx_word_embeddings.pt"
+training:
+  kfold:
+    kind: "default" # could also use repeated, stratified, etc...
+    k: 10
+  max_iter: 100
+outputs:
+  save_dir: "./outputs/logreg/mbart_ft.pkl"
+wandb:
+  project: "Tira-LM"
+  run_name: "mbart-ft-parens-logreg"
