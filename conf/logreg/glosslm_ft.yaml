@@ -1,0 +1,12 @@
+model:
+  name: "lecslab/glosslm"
+  local_path: "../training/outputs/glosslm/translation/model"
+  device: 'cuda'
+  embed_dim: 'auto'
+data:
+  embed_path: "./outputs/glosslm/translation/embeds/abx_word_embeddings.pt"
+training:
+  kfold:
+    kind: "default" # could also use repeated, stratified, etc...
+    k: 10
+  max_iter: 100
