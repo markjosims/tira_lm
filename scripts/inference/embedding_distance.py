@@ -55,7 +55,6 @@ class AbxDataset(Dataset):
             start_index, end_index = int(start_index), int(end_index)
             word_range = torch.tensor([start_index, end_index], device=self.device)
             item[col] = word_range
-        breakpoint()
         return item
 
 def collate_batch(
@@ -68,7 +67,7 @@ def collate_batch(
                 'input_ids': torch.stack([item[key]['input_ids'] for item in batch_list]),
                 'attention_mask': torch.stack([item[key]['attention_mask'] for item in batch_list]),
             }
-            encodings = [item[key].encoding for item in batch_list]
+            encodings = [item[key].encodings[0] for item in batch_list]
             collated_batch[key] = BatchEncoding(data=data, encoding=encodings)
         else:
             collated_batch[key] = torch.stack([item[key] for item in batch_list])
@@ -109,8 +108,6 @@ def get_batch_embeddings(model, batch):
         sentence_embeddings = outputs.encoder_last_hidden_state
         batch_embeddings = []
         for i, word_indices in enumerate(batch[word_idx]):
-            breakpoint()
-            # TODO: only one batch encoding is getting returned per batch of 64! investigate
             token_encoding = batch[sentence][i]
             word_token_indices = get_word_token_indices(token_encoding, word_indices)
             record_embeddings = sentence_embeddings[i].squeeze()
