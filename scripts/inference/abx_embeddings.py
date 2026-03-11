@@ -1,5 +1,6 @@
 """
-Inference script for generating word embeddings from Tira language dataset.
+Inference script for generating contextual word embeddings for Abx
+sentences and computing distance metrics between them.
 """
 
 import hydra
@@ -11,28 +12,31 @@ from transformers import (
     AutoModelForSeq2SeqLM,
 )
 import pandas as pd
-from scripts.constants import tira_sentence_list
+from scripts.constants import abx_sentence_list
 from typing import List
 from tqdm import tqdm
 import re
 
-from scripts.data_utils import TextDataset
+from scripts.data_utils import AbxDataset
 from scripts.data_utils import HybridDataLoader
 from scripts.inference.embedding_utils import get_encoder_outputs
 
 def get_word_token_indices(batch_index, batch, record_type, tokenizer):
     """
-    Get the token indices for each word in the sentence.
+    Get the indices of the word tokens within the sentence tokens.
     Calls either `get_word_token_indices_slow_tokenizer` or
     `get_word_token_indices_fast_tokenizer` depending on whether the
     tokenizer provides word_ids.
     """
+    sentence_key = f'sentence_{record_type}'
+    word_key = f'word_{record_type}'
     word_index_key = f'word_{record_type}_index'
     if batch[sentence_key].encodings is None:
         assert not tokenizer.is_fast,\
         "Tokenizer does not provide encodings but is a fast tokenizer, check tokenizer configuration."
-        sentence = batch['strings']['text'][batch_index]
-        return get_word_token_indices_slow_tokenizer(sentence)
+        sentence = batch['strings'][sentence_key][batch_index]
+        word = batch['strings'][word_key][batch_index]
+        return get_word_token_indices_slow_tokenizer(sentence, word)
     
     sentence_encoding = batch[sentence_key].encodings[batch_index]
     word_range = batch[word_index_key][batch_index].tolist()
@@ -110,18 +114,28 @@ def main(cfg: DictConfig):
     model.eval()
 
     # Load Dataset
-    data_path = getattr(cfg.data, 'path', None) or tira_sentence_list
+    data_path = getattr(cfg.data, 'path', None) or abx_sentence_list
     print(f"Loading dataset from: {data_path}")
     df = pd.read_csv(data_path)
 
     # Tokenize Dataset and define DataLoader
     print("Initializing dataset and dataloader...")
-    dataset = TextDataset(
-        df=df,
-        text_col='sentence',
-        tokenizer=tokenizer,
-        max_length=cfg.model.max_length,
-        device=device
+    sentence_columns = []
+    word_columns = []
+    word_index_columns = []
+    for item in ('a', 'b', 'x'):
+        sentence_columns.append(f'sentence_{item}')
+        word_columns.append(f'word_{item}')
+        word_index_columns.append(f'word_{item}_index')
+
+    dataset = AbxDataset(
+        df,
+        sentence_columns,
+        word_columns,
+        word_index_columns,
+        tokenizer,
+        cfg.model.max_length,
+        device=device,
     )
     dataloader = HybridDataLoader(
         torch_dataset=dataset,
@@ -132,21 +146,21 @@ def main(cfg: DictConfig):
     # Compute Embeddings and Distances
     print("Computing embeddings...")
 
-    sentence_embeddings = []
+    embeddings = {}
     for batch in tqdm(dataloader):
         batch_embeddings = get_batch_embeddings(model, tokenizer, batch)
         for key in batch_embeddings:
-            if key not in sentence_embeddings:
-                sentence_embeddings[key] = []
-            sentence_embeddings[key].append(batch_embeddings[key])
-    for key in sentence_embeddings:
-        sentence_embeddings[key] = torch.cat(sentence_embeddings[key])
+            if key not in embeddings:
+                embeddings[key] = []
+            embeddings[key].append(batch_embeddings[key])
+    for key in embeddings:
+        embeddings[key] = torch.cat(embeddings[key])
         
     # Save embeddings locally
     output_path = os.path.join(cfg.outputs.save_dir, 'abx_word_embeddings.pt')
     os.makedirs(cfg.outputs.save_dir, exist_ok=True)
     print(f"Saving embeddings to: {output_path}")
-    torch.save(sentence_embeddings, output_path)
+    torch.save(embeddings, output_path)
 
 
 if __name__ == '__main__':
