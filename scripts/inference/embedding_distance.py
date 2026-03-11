@@ -105,7 +105,8 @@ def get_batch_embeddings(model, batch):
         word_idx = f'word_{item}_index'
         with torch.no_grad():
             outputs = model(input_ids=batch[sentence]['input_ids'].squeeze())
-        sentence_embeddings = outputs.encoder_last_hidden_state
+        sentence_embeddings = outputs.encoder_last_hidden_state.to('cpu')
+        del outputs
         batch_embeddings = []
         for i, word_indices in enumerate(batch[word_idx]):
             token_encoding = batch[sentence][i]
@@ -134,6 +135,7 @@ def main(cfg: DictConfig):
     # Setup WandB
     print(f"Using WandB project: {cfg.wandb.project}")
     os.environ["WANDB_PROJECT"] = cfg.wandb.project
+    wandb.init()
     
     # Load Model & Tokenizer
     print(f"Loading model and tokenizer from: {cfg.model.local_path}")
