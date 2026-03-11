@@ -55,3 +55,6 @@ def get_args():
     parser.add_argument("--logreg", type=str, help="Path to logistic regression model (if used)")
     parser.add_argument("--output_path", type=str, required=True, help="Path to save the pairwise similarity results.")
     return parser.parse_args()
+
+if __name__ == "__main__":
+    main()
