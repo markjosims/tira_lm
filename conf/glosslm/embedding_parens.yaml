@@ -1,5 +1,5 @@
 defaults:
-- embedding_comparison
+- embedding
 
 model:
   local_path: "../training/outputs/glosslm/translation_parens/model"
