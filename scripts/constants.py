@@ -9,8 +9,11 @@ documentation_dir = os.path.abspath('doc/')
 frame_config = os.path.abspath('doc/frames.yaml')
 frame_list = os.path.abspath('data/abx_frames.csv')
 
+dataset_uri = 'tira-parsing/tira-parsing'
 abx_sentence_list = os.path.abspath('data/abx_sentences.csv')
-
+tira_sentence_list = os.path.abspath('data/tira_sentences.csv')
+tira_word_list = os.path.abspath('data/tira_words.csv')
+word2sentence_list = os.path.abspath('data/word2sentence.csv')
 parenthetical_list = os.path.abspath('doc/parentheticals.tsv')
 
 # misc
