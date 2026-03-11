@@ -116,7 +116,7 @@ def get_batch_embeddings(model, tokenizer, batch):
         embeddings[item] = torch.stack(batch_embeddings)
     return embeddings
 
-@hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="embedding_comparison")
+@hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="embeddings")
 def main(cfg: DictConfig):
     
     # Load Model & Tokenizer
