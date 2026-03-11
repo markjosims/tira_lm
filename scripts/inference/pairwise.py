@@ -6,12 +6,12 @@ import argparse
 import pandas as pd
 import pickle
 
-def pairwise_levenshtein_distance(words: list) -> torch.Tensor:
+def pairwise_levenshtein_ratio(words: list) -> torch.Tensor:
     n = len(words)
     dist_mat = torch.zeros((n, n))
     for i in range(n):
         for j in range(i + 1, n):
-            dist = Levenshtein.distance(words[i], words[j])
+            dist = Levenshtein.ratio(words[i], words[j])
             dist_mat[i, j] = dist
             dist_mat[j, i] = dist
     return dist_mat
@@ -30,7 +30,7 @@ def main():
     if args.strategy == 'edit_distance':
         print("Computing pairwise Levenshtein distances...")
         df = pd.read_csv(args.data_path)
-        dist_mat = pairwise_levenshtein_distance(df['word'].tolist())
+        dist_mat = pairwise_levenshtein_ratio(df['word'].tolist())
     elif args.strategy == 'cosine_similarity':
         print("Computing pairwise cosine similarities...")
         embeddings = torch.load(args.data_path)
