@@ -87,13 +87,17 @@ class TextDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        return self.tokenizer(
+        item = self.tokenizer(
             self.df.iloc[idx][self.text_col],
             return_tensors='pt',
             truncation=True,
                 padding='max_length',
                 max_length=self.max_length,
-        ).squeeze().to(self.device)
+        )
+        # remove batch dimension and put to device
+        for key, value in item.items():
+            item[key] = value.squeeze().to(self.device)]
+        return item
 
 class EmbeddingDataset(Dataset):
     """
