@@ -38,6 +38,7 @@ def main():
             word2sentence['word_index']==word_index
         ]['sentence_index'].tolist()
         sentences = sentence_df.iloc[sentence_indices]
+        sentences['word'] = word
         sentences['rank'] = str(i)
         top_sentences.append(sentences)
     hits = pd.concat([hits]+top_sentences)
