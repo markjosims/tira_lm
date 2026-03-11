@@ -175,7 +175,7 @@ def main(cfg: DictConfig):
             )
         
     # Save embeddings locally
-    output_path = os.path.join(output_path, 'abx_word_embeddings.pt')
+    output_path = os.path.join(cfg.outputs.save_dir, 'abx_word_embeddings.pt')
     os.makedirs(output_path, exist_ok=True)
     print(f"Saving embeddings to: {output_path}")
     torch.save(embeddings, output_path)
