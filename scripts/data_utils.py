@@ -96,7 +96,7 @@ class TextDataset(Dataset):
         )
         # remove batch dimension and put to device
         for key, value in item.items():
-            item[key] = value.squeeze().to(self.device)]
+            item[key] = value.squeeze().to(self.device)
         return item
 
 class EmbeddingDataset(Dataset):
