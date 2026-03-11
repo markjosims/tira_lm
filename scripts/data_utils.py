@@ -93,7 +93,7 @@ class TextDataset(Dataset):
             truncation=True,
                 padding='max_length',
                 max_length=self.max_length,
-        ).to(self.device)
+        ).squeeze().to(self.device)
 
 class EmbeddingDataset(Dataset):
     """
