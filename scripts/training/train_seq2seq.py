@@ -1,3 +1,5 @@
+from typing import Dict, Literal
+
 import hydra
 import wandb
 import os
@@ -76,29 +78,84 @@ def filter_texts(example) -> str:
     part_regex = re.compile('parts? of', re.IGNORECASE)
     return not part_regex.match(example['input_text'])
 
+def get_preprocess_function(cfg, tokenizer):
+    paren_behavior, paren_map = configure_parenthetical_settings(cfg)
+
+    def preprocess_fn(examples):
+        # First do model-agnostic string normalization
+        examples = preprocess_texts(examples, paren_behavior, paren_map)
+
+        # Then apply model-specific formatting
+        if cfg.data.task.format == "prompt_template":
+            return preprocess_prompt(
+                examples=examples,
+                prompt_template=cfg.data.task.prompt,
+                expected_fields=cfg.data.task.expected_fields,
+                tokenizer=tokenizer,
+                max_length=cfg.model.max_length,
+            )
+        elif cfg.data.task.format == "mbart":
+            tokenizer.src_lang = cfg.data.task.src_lang_code
+            tokenizer.tgt_lang = cfg.data.task.tgt_lang_code
+            return preprocess_mbart(examples, tokenizer, cfg.model.max_length)
+        else:
+            raise ValueError(f"Unsupported task format: {cfg.data.task.format}")
+    return preprocess_fn
+
+def configure_parenthetical_settings(cfg):
+    parenthetical_behavior = getattr(cfg.data.task, "parenthetical_behavior", "remove")
+    parenthetical_map_file = getattr(cfg.data.task, "parenthetical_map_file", None)
+    parenthetical_map = None
+    if parenthetical_behavior == "transform":
+        if parenthetical_map_file is None:
+            raise ValueError("parenthetical_map_file must be specified in the config when using 'transform' behavior")
+        parenthetical_map = {}
+        print(f"Loading parenthetical map from {parenthetical_map_file}...")
+        with open(parenthetical_map_file, 'r') as f:
+            lines = f.readlines()
+        for line in lines[1:]:  # skip header
+            key, value = line.strip().split('\t')
+            parenthetical_map[key] = value
+    
+    return parenthetical_behavior, parenthetical_map
+
+
 def preprocess_transcription(input_text: str) -> str:
     input_text = input_text.strip()
     return input_text
 
-def preprocess_translation(output_text: str) -> str:
-    output_text = output_text.strip().lower()
-    parenthetical_rgx = r'\(.*?\)'
-    output_text = re.sub(parenthetical_rgx, '', output_text)
-
-    non_alphanum_rgx = r'[^A-Za-z0-9\s]'
-    output_text = re.sub(non_alphanum_rgx, '', output_text)
-    return output_text
-
-def preprocess_texts(examples):
+def preprocess_texts(examples, parenthetical_behavior=None, parenthetical_map=None):
     examples['input_text'] = [
         preprocess_transcription(text)
         for text in examples['input_text']
     ]
     examples['output_text'] = [
-        preprocess_translation(text)
+        preprocess_translation(text, parenthetical_behavior, parenthetical_map)
         for text in examples['output_text']
     ]
     return examples
+
+def preprocess_translation(
+        output_text: str,
+        parenthetical_behavior: Literal["remove", "keep", "transform"],
+        parenthetical_map: Dict[str, str] = None,
+    ) -> str:
+    output_text = output_text.strip().lower()
+
+    # handle parenthetical substrs
+    parenthetical_rgx = r'\(.*?\)'
+    if parenthetical_behavior == "remove":
+        output_text = re.sub(parenthetical_rgx, '', output_text)
+    elif parenthetical_behavior == "transform":
+        if parenthetical_map is None:
+            raise ValueError("parenthetical_map must be provided when using 'transform' behavior")
+        for intab, outtab in parenthetical_map.items():
+            output_text = output_text.replace(intab, outtab)
+        output_text = re.sub(parenthetical_rgx, '', output_text)
+
+    non_alphanum_rgx = r'[^A-Za-z0-9\s]'
+    output_text = re.sub(non_alphanum_rgx, '', output_text)
+    return output_text
 
 def preprocess_prompt(
         examples,
@@ -141,22 +198,7 @@ def main(cfg: DictConfig):
     # 2. Load Model & Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(cfg.model.name)
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg.model.name)
-
-    if cfg.data.task.format == "prompt_template":
-        preprocess_fn = lambda examples: preprocess_prompt(
-            examples=examples,
-            prompt_template=cfg.data.task.prompt,
-            expected_fields=cfg.data.task.expected_fields,
-            tokenizer=tokenizer,
-            max_length=cfg.model.max_length,
-        )
-    elif cfg.data.task.format == "mbart":
-        tokenizer.src_lang = cfg.data.task.src_lang_code
-        tokenizer.tgt_lang = cfg.data.task.tgt_lang_code
-        preprocess_fn = lambda examples: preprocess_mbart(examples, tokenizer, cfg.model.max_length)
-    else:
-        raise ValueError(f"Unsupported task format: {cfg.data.task.format}")
-
+    preprocess_fn = get_preprocess_function(cfg, tokenizer)
 
     # 3. Load Data
     dataset = load_dataset(cfg.data.hf_uri)
