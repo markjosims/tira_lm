@@ -205,7 +205,7 @@ def get_batch_embeddings(model, tokenizer, batch):
         embeddings[item] = torch.stack(batch_embeddings)
     return embeddings
 
-def score_batch(model, tokenizer, batch):
+def score_batch(model, tokenizer, batch) -> pd.DataFrame:
     """
     Compute embeddings for the batch and then compute cosine similarity
     between the contextual word embeddings of sentence_x and sentence_a,
@@ -216,7 +216,12 @@ def score_batch(model, tokenizer, batch):
     a_x_similarity = F.cosine_similarity(embeddings['a'], embeddings['x'])
     b_x_similarity = F.cosine_similarity(embeddings['b'], embeddings['x'])
     scores = a_x_similarity > b_x_similarity
-    return scores, a_x_similarity, b_x_similarity
+    
+    report = pd.DataFrame(batch['strings'])
+    report['a_x_similarity'] = a_x_similarity.cpu().numpy()
+    report['b_x_similarity'] = b_x_similarity.cpu().numpy()
+    report['score'] = scores.cpu().numpy()
+    return report
 
 @hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="embedding_comparison")
 def main(cfg: DictConfig):
@@ -274,22 +279,25 @@ def main(cfg: DictConfig):
     all_a_x_similarities = []
     all_b_x_similarities = []
 
+    reports = []
     for batch in tqdm(dataloader):
-        scores, a_x_similarity, b_x_similarity = score_batch(model, tokenizer, batch)
-        all_scores.append(scores.cpu())
-        all_a_x_similarities.append(a_x_similarity.cpu())
-        all_b_x_similarities.append(b_x_similarity.cpu())
+        report = score_batch(model, tokenizer, batch)
+        reports.append(report)
+        wandb.log({"batch_report": report})
     
-    all_scores = torch.cat(all_scores)
-    all_a_x_similarities = torch.cat(all_a_x_similarities)
-    all_b_x_similarities = torch.cat(all_b_x_similarities)
-
     # 6. Log Results to WandB
-    wandb.log({
-        'accuracy': all_scores.float().mean().item(),
-        'a_x_similarity': all_a_x_similarities.mean().item(),
-        'b_x_similarity': all_b_x_similarities.mean().item(),
-    })
+    final_report = pd.concat(reports, ignore_index=True)
+    wandb.log({"final_report": final_report})
+    mean_acc = final_report['score'].astype(float).mean()
+    mean_ax_similarity = final_report['a_x_similarity'].mean()
+    mean_bx_similarity = final_report['b_x_similarity'].mean()
+    print(f"Mean Accuracy: {mean_acc:.4f}")
+    print(f"Mean A-X Similarity: {mean_ax_similarity:.4f}")
+    print(f"Mean B-X Similarity: {mean_bx_similarity:.4f}")
+    wandb.summary["mean_accuracy"] = mean_acc
+    wandb.summary["mean_a_x_similarity"] = mean_ax_similarity
+    wandb.summary["mean_b_x_similarity"] = mean_bx_similarity
+    wandb.finish()
 
 if __name__ == '__main__':
     main()
