@@ -63,7 +63,7 @@ def main(cfg: DictConfig):
         with torch.no_grad():
             encoder_outputs = get_encoder_outputs(model, batch)
 
-        word_embeddings.append(encoder_outputs.cpu())
+        word_embeddings.extend(encoder_outputs.cpu())
         
     # Save embeddings locally
     output_path = os.path.join(cfg.outputs.save_dir, 'word_embeddings.pt')
