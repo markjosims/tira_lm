@@ -120,6 +120,43 @@ def get_target_word(sentence: str) -> str:
     else:
         raise ValueError(f"Could not find target word in sentence template: {sentence}")
 
+def format_sentence(
+        sentence: str,
+        target: str,
+        word: str,
+    ) -> Tuple[str, str, str]:
+    """
+    Replace the "[$tgt={target}]" substring in sentence with the given edited
+    target word, and then gives a tuple of indices indicating the start and end
+    index of the target word (which may actually be multiple words) in the sentene.
+    """
+    target_marker = f"[$tgt={target}]"
+    formatted_sentence = sentence.replace(target_marker, word)
+    
+    # "[$tgt={target}]" substr may follow a class prefix
+    # e.g. "àpɾí j[$tgt={target}] ðáŋàlà"
+    # if so, it should be combined with the word
+    # to detect and extract the class prefix, first isolate the prefix
+    # check if it ends with a non-whitespace char, and split if applicable
+    target_marker_index = sentence.index(target_marker)
+    target_marker_prefix = sentence[:target_marker_index]
+    if target_marker_prefix and (not target_marker_prefix.endswith(' ')):
+        class_marker = target_marker_prefix.split()[-1]
+        word = class_marker + word
+
+    formatted_words = formatted_sentence.split()
+    # need to split `target_words` as it may contain an auxiliary + verb stem
+    # e.g. ká və́lɛ̀ðɛ̀
+    subwords = word.split()
+    subword_indices = []
+    for subword in subwords:
+        subword_index = formatted_words.index(subword)
+        subword_indices.append(subword_index)
+    start_index = min(subword_indices)
+    end_index = max(subword_indices)
+    target_indices = f"{start_index}:{end_index}"
+    return formatted_sentence, word, target_indices
+
 
 def generate_sentences_for_frame(frame_row, edited_word_df) -> List[Dict[str, str]]:
     """
@@ -128,19 +165,21 @@ def generate_sentences_for_frame(frame_row, edited_word_df) -> List[Dict[str, st
     for sentence A, then sample a random edited word from sentences B and X such that
     Levenshtein(A, X) > Levenshtein(B, X).
     """
-    sentence_a_target = get_target_word(frame_row['sentence_a'])
-    sentence_b_target = get_target_word(frame_row['sentence_b'])
-    sentence_x_target = get_target_word(frame_row['sentence_x'])
+    targets = {
+        item: get_target_word(frame_row[f'sentence_{item}'])
+        for item in ('a', 'b', 'x')
+    }
 
-    assert sentence_a_target == sentence_x_target,\
-        f"Target word for sentence A and X must be the same, but got '{sentence_a_target}' "\
-        f"and '{sentence_x_target}'"
-    assert sentence_b_target != sentence_a_target,\
+
+    assert targets['a'] == targets['x'],\
+        f"Target word for sentence A and X must be the same, but got '{targets['a']}' "\
+        f"and '{targets['x']}'"
+    assert targets['b'] != targets['x'],\
         f"Target word for sentence B must be different from sentence A, but got "\
-        f"'{sentence_b_target}' and '{sentence_a_target}'"
+        f"'{targets['b']}' and '{targets['x']}'"
 
-    target_ax_mask = edited_word_df['word'] == sentence_a_target
-    target_b_mask = edited_word_df['word'] == sentence_b_target
+    target_ax_mask = edited_word_df['word'] == targets['a']
+    target_b_mask = edited_word_df['word'] == targets['b']
     k_values = edited_word_df[target_ax_mask]['k'].unique()
     
     frame_sentences = []
@@ -148,28 +187,35 @@ def generate_sentences_for_frame(frame_row, edited_word_df) -> List[Dict[str, st
         k_mask = edited_word_df['k'] == k
         candidate_a_rows = edited_word_df[target_ax_mask & k_mask]
         if candidate_a_rows.empty:
-            logging.warning(f"No edited words found for target '{sentence_a_target}' with k={k}")
+            logging.warning(f"No edited words found for target '{targets['a']}' with k={k}")
             continue
         try:
             word_a, word_b, word_x = sample_abx(edited_word_df, target_ax_mask, target_b_mask, candidate_a_rows)
         except ValueError as e:
-            logging.warning(f"Error occurred while sampling ABX triplets for target '{sentence_a_target}' with k={k}: {e}")
+            logging.warning(
+                f"Error occurred while sampling ABX triplets for target '{targets['a']}' with k={k}: {e}"
+            )
             continue
-
-        sentence_a = frame_row['sentence_a'].replace(f"[$tgt={sentence_a_target}]", word_a)
-        sentence_b = frame_row['sentence_b'].replace(f"[$tgt={sentence_b_target}]", word_b)
-        sentence_x = frame_row['sentence_x'].replace(f"[$tgt={sentence_x_target}]", word_x)
 
         row_data = frame_row.to_dict()
         row_data.update({
-            'sentence_a': sentence_a,
-            'sentence_b': sentence_b,
-            'sentence_x': sentence_x,
             'word_a': word_a,
             'word_b': word_b,
             'word_x': word_x,
             'k': k,
         })
+        for item in ['a', 'b', 'x']:
+            word = row_data['word_'+item]
+            sentence = row_data['sentence_'+item]
+            target = targets[item]
+            formatted_sentence, formatted_word, word_indices = format_sentence(
+                sentence,
+                target,
+                word,
+            )
+            row_data[f'sentence_{item}'] = formatted_sentence
+            row_data[f'word_{item}'] = formatted_word
+            row_data[f'word_{item}_index'] = word_indices
         frame_sentences.append(row_data)
     return frame_sentences
 
