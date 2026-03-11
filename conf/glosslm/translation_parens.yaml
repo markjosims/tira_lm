@@ -1,38 +1,12 @@
 # equivalent to 'translation.yaml' but applies mapping on parenthetical substrings
 # as specified in ../../doc/parentheticals.tsv
-model:
-  name: "lecslab/glosslm"
-  max_length: 512
+defaults:
+- translation
 
 data:
-  hf_uri: "tira-parsing/fst-output"
-  columns:
-    input_column: "orig_text"
-    target_column: "translation"
   task:
-    format: "prompt_template"
-    expected_fields: ["input_text"]
-    parenthetical_beahvior: "transform"
+    parenthetical_behavior: "transform"
     parenthetical_map_file: "../../doc/parentheticals.tsv"
-    prompt: |
-      prompt = f"""Provide the translation for the following transcription in Tira.
-
-      Transcription in Tira: {input_text}
-      Transcription segmented: False
-
-      Translation:"""
-
-training:
-  output_dir: "./outputs/glosslm/translation_parens"
-  learning_rate: 3e-4
-  batch_size: 8
-  grad_acc: 4
-  epochs: 20
-  bf16: true
-  save_total_limit: 2
-  weight_decay: 0.01
-  logging_steps: 10
 
 wandb:
-  project: "Tira-LM"
-  run_name: "glosslm-translation"
+  run_name: "glosslm-translation-parens"

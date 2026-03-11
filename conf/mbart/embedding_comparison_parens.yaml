@@ -1,0 +1,8 @@
+defaults:
+- embedding_comparison
+
+model:
+  local_path: "../training/outputs/mbart/translation_parens/model"
+
+wandb:
+  run_name: "mbart-embedding-comparison-parens"
