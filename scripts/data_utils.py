@@ -119,8 +119,8 @@ class EmbeddingDataset(Dataset):
 class SklearnDataset:
     """
     Load embedding dictionary and create positive and negative records
-    by adding embeddings, such that word_a + word_x is positive and
-    word_b + word_x is negative. This allows us to train a logistic regression
+    by subtracting embeddings, such that word_a - word_x is positive and
+    word_b - word_x is negative. This allows us to train a logistic regression
     classifier on the resulting dataset.
     """
     def __init__(
@@ -135,8 +135,8 @@ class SklearnDataset:
         self.keys = list(self.embeddings.keys())
         X = []
         y = []
-        positive_samples = self.embeddings['a'] + self.embeddings['x']
-        negative_samples = self.embeddings['b'] + self.embeddings['x']
+        positive_samples = self.embeddings['a'] - self.embeddings['x']
+        negative_samples = self.embeddings['b'] - self.embeddings['x']
         for pos, neg in zip(positive_samples, negative_samples):
             X.append(pos.cpu().numpy())
             y.append(1)
