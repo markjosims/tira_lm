@@ -76,6 +76,24 @@ def get_word_token_indices_fast_tokenizer(token_encoding, word_range):
 
     return target_word_indices
 
+def get_encoder_outputs(model, input_ids) -> torch.Tensor:
+    """
+    Get the encoder outputs for the given input_ids.
+    Syntax for accessing encoder outputs differs based on whether
+    the model exposes the encoder as an attribute (e.g. ByT5)
+    or not (BART).
+    """
+    if hasattr(model, 'encoder'):
+        with torch.no_grad():
+            outputs = model.encoder(input_ids=input_ids)
+        encoder_out = outputs.last_hidden_state.to('cpu')
+    else:
+        with torch.no_grad():
+            outputs = model(input_ids=input_ids)
+        encoder_out = outputs.encoder_last_hidden_state.to('cpu')
+    del outputs
+    return encoder_out
+
 def get_batch_embeddings(model, tokenizer, batch):
     """
     Compute embeddings for each sentence in the batch, then
@@ -86,10 +104,7 @@ def get_batch_embeddings(model, tokenizer, batch):
     embeddings = {}
     for item in ['a', 'b', 'x']:
         sentence = 'sentence_' + item
-
-        with torch.no_grad():
-            outputs = model.encoder(input_ids=batch[sentence]['input_ids'].squeeze())
-        sentence_embeddings = outputs.last_hidden_state.to('cpu')
+        sentence_embeddings = get_encoder_outputs(model, batch[sentence]['input_ids'])
         del outputs
         batch_embeddings = []
         batch_size = batch[sentence]['input_ids'].shape[0]
