@@ -12,7 +12,7 @@ data:
     tgt_lang_code: "en_XX"
 
 inference:
-  batch_size: 256
+  batch_size: 64
 
 wandb:
   project: "Tira-LM"
