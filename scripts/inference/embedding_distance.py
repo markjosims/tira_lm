@@ -275,10 +275,6 @@ def main(cfg: DictConfig):
     # Compute Embeddings and Distances
     print("Computing embeddings and distances...")
 
-    all_scores = []
-    all_a_x_similarities = []
-    all_b_x_similarities = []
-
     reports = []
     for batch in tqdm(dataloader):
         report = score_batch(model, tokenizer, batch)
