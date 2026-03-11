@@ -4,5 +4,8 @@ defaults:
 model:
   local_path: "../training/outputs/mbart/translation_parens/model"
 
+outputs:
+  save_dir: "./outputs/mbart/translation_parens/embeds"
+
 wandb:
   run_name: "mbart-embedding-comparison-parens"

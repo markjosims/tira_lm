@@ -4,5 +4,8 @@ defaults:
 model:
   local_path: "../training/outputs/glosslm/translation_parens/model"
 
+outputs:
+  save_dir: "./outputs/glosslm/translation_parens/embeds"
+
 wandb:
   run_name: "glosslm-embedding-comparison-parens"

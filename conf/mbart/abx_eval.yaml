@@ -1,0 +1,10 @@
+model:
+  name: "lecslab/glosslm"
+  local_path: "../training/outputs/glosslm/translation/model"
+
+data:
+  embed_path: "./outputs/glosslm/translation/embeds/abx_word_embeddings.pt"
+  csv_path: "../../data/abx_sentences.csv"
+
+inference:
+  batch_size: 512
