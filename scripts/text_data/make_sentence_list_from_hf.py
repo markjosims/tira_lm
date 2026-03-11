@@ -81,7 +81,7 @@ def main():
 
     print(
         f"Writing unique words to {args.words_list} "\
-        " and word2sentence mapping to {args.word2sentence_list}..."
+        f" and word2sentence mapping to {args.word2sentence_list}..."
     )
     # use list rather than set to preserve order of first occurrence of words
     unique_words = []
