@@ -11,7 +11,7 @@ training:
     k: 10
   max_iter: 100
 outputs:
-  save_dir: "./outputs/logreg/mbart_ft.pkl"
+  save_dir: "./outputs/logreg/mbart_ft"
 wandb:
   project: "Tira-LM"
   run_name: "mbart-ft-logreg"

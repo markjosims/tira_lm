@@ -11,7 +11,7 @@ training:
     k: 10
   max_iter: 100
 outputs:
-  save_dir: "./outputs/logreg/glosslm_ft.pkl"
+  save_dir: "./outputs/logreg/glosslm_ft"
 wandb:
   project: "Tira-LM"
   run_name: "glosslm-ft-parens-logreg"
