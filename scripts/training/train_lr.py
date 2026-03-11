@@ -15,7 +15,7 @@ def main(cfg: DictConfig):
     os.environ["WANDB_PROJECT"] = cfg.wandb.project
     wandb.init()
 
-    embeddings_path = cfg.embeddings.path
+    embeddings_path = cfg.data.embeds_path
     print(f"Loading embeddings from: {embeddings_path}")
     dataset = SklearnDataset(embeddings_path)
     X, y = dataset.X, dataset.y
