@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer, BatchEncoding
-from constants import device
+from scripts.constants import device
 from typing import List, Dict, Union, Any
 
 
