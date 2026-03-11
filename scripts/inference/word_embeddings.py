@@ -105,7 +105,6 @@ def get_batch_embeddings(model, tokenizer, batch):
     for item in ['a', 'b', 'x']:
         sentence = 'sentence_' + item
         sentence_embeddings = get_encoder_outputs(model, batch[sentence]['input_ids'])
-        del outputs
         batch_embeddings = []
         batch_size = batch[sentence]['input_ids'].shape[0]
         for i in range(batch_size):
