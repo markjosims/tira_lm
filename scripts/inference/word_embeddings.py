@@ -20,7 +20,7 @@ from scripts.data_utils import TextDataset
 from scripts.data_utils import HybridDataLoader
 from scripts.inference.embedding_utils import get_encoder_outputs
 
-@hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="embedding")
+@hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="word_embedding")
 def main(cfg: DictConfig):
     
     # Load Model & Tokenizer
