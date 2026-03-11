@@ -1,0 +1,17 @@
+model:
+  name: "facebook/mbart-large-50-many-to-many-mmt"
+  local_path: "../training/outputs/mbart/translation/model"
+  max_length: 32
+  device: 'cuda'
+
+data:
+  path: "../../data/tira_words.csv"
+  task:
+    src_lang_code: "sw_KE"
+    tgt_lang_code: "en_XX"
+
+inference:
+  batch_size: 128
+
+outputs:
+  save_dir: "./outputs/mbart/translation/embeds"

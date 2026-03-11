@@ -1,0 +1,14 @@
+model:
+  name: "lecslab/glosslm"
+  local_path: "../training/outputs/glosslm/translation/model"
+  max_length: 32
+  device: 'cuda'
+
+data:
+  path: "../../data/tira_words.csv"
+
+inference:
+  batch_size: 128
+
+outputs:
+  save_dir: "./outputs/glosslm/translation/embeds"

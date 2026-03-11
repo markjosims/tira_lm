@@ -11,7 +11,7 @@ from transformers import (
     AutoModelForSeq2SeqLM,
 )
 import pandas as pd
-from scripts.constants import tira_sentence_list
+from scripts.constants import tira_word_list
 from typing import List
 from tqdm import tqdm
 import re
@@ -19,80 +19,6 @@ import re
 from scripts.data_utils import TextDataset
 from scripts.data_utils import HybridDataLoader
 from scripts.inference.embedding_utils import get_encoder_outputs
-
-def get_word_token_indices(batch_index, batch, record_type, tokenizer):
-    """
-    Get the token indices for each word in the sentence.
-    Calls either `get_word_token_indices_slow_tokenizer` or
-    `get_word_token_indices_fast_tokenizer` depending on whether the
-    tokenizer provides word_ids.
-    """
-    word_index_key = f'word_{record_type}_index'
-    if batch[sentence_key].encodings is None:
-        assert not tokenizer.is_fast,\
-        "Tokenizer does not provide encodings but is a fast tokenizer, check tokenizer configuration."
-        sentence = batch['strings']['text'][batch_index]
-        return get_word_token_indices_slow_tokenizer(sentence)
-    
-    sentence_encoding = batch[sentence_key].encodings[batch_index]
-    word_range = batch[word_index_key][batch_index].tolist()
-    return get_word_token_indices_fast_tokenizer(sentence_encoding, word_range)    
-
-def get_word_token_indices_slow_tokenizer(sentence, word) -> List[int]:
-    """
-    Gets the expected indices of the word in the sentence by using their
-    utf-8 bytes.
-    """
-    sentence_bytes = sentence.encode('utf-8')
-    word_bytes = word.encode('utf-8')
-
-    matches = re.finditer(word_bytes, sentence_bytes)
-    matches = list(matches)
-    assert len(matches)==1, f"Expected one occurrence of {word} in {sentence} but got {len(matches)}"
-    start = matches[0].start()
-    end = matches[0].end()
-    return list(range(start, end))
-
-
-def get_word_token_indices_fast_tokenizer(token_encoding, word_range):
-    """
-    Use the word_ids provided by the fast tokenizer to find the indices of the
-    word tokens in the sentence tokens.
-    """
-    word_start, word_end = word_range
-    word_ids = token_encoding.word_ids
-    target_word_indices = []
-    for i, word_id in enumerate(word_ids):
-        if word_id is None:
-            continue
-        if (word_id >= word_start) and (word_id <= word_end):
-            target_word_indices.append(i)
-
-    if not target_word_indices:
-        raise ValueError("Word tokens not found in the sentence.")
-
-    return target_word_indices
-
-def get_batch_embeddings(model, tokenizer, batch):
-    """
-    Compute embeddings for each sentence in the batch, then
-    get contextual word embeddings by averaging the token embeddings
-    for the word tokens.
-    """
-
-    embeddings = {}
-    for item in ['a', 'b', 'x']:
-        sentence = 'sentence_' + item
-        sentence_embeddings = get_encoder_outputs(model, batch[sentence]['input_ids'])
-        batch_embeddings = []
-        batch_size = batch[sentence]['input_ids'].shape[0]
-        for i in range(batch_size):
-            word_token_indices = get_word_token_indices(i, batch, item, tokenizer)
-            record_embeddings = sentence_embeddings[i].squeeze()
-            word_embedding = record_embeddings[word_token_indices].mean(dim=0)
-            batch_embeddings.append(word_embedding)
-        embeddings[item] = torch.stack(batch_embeddings)
-    return embeddings
 
 @hydra.main(version_base="1.3", config_path="../../conf/mbart", config_name="embedding")
 def main(cfg: DictConfig):
@@ -110,7 +36,7 @@ def main(cfg: DictConfig):
     model.eval()
 
     # Load Dataset
-    data_path = getattr(cfg.data, 'path', None) or tira_sentence_list
+    data_path = getattr(cfg.data, 'path', None) or tira_word_list
     print(f"Loading dataset from: {data_path}")
     df = pd.read_csv(data_path)
 
@@ -118,7 +44,7 @@ def main(cfg: DictConfig):
     print("Initializing dataset and dataloader...")
     dataset = TextDataset(
         df=df,
-        text_col='sentence',
+        text_col='word',
         tokenizer=tokenizer,
         max_length=cfg.model.max_length,
         device=device
@@ -132,21 +58,21 @@ def main(cfg: DictConfig):
     # Compute Embeddings and Distances
     print("Computing embeddings...")
 
-    sentence_embeddings = []
+    word_embeddings = []
     for batch in tqdm(dataloader):
-        batch_embeddings = get_batch_embeddings(model, tokenizer, batch)
-        for key in batch_embeddings:
-            if key not in sentence_embeddings:
-                sentence_embeddings[key] = []
-            sentence_embeddings[key].append(batch_embeddings[key])
-    for key in sentence_embeddings:
-        sentence_embeddings[key] = torch.cat(sentence_embeddings[key])
+        input_ids = batch['input_ids']
+        attention_mask = batch['attention_mask']
+
+        with torch.no_grad():
+            encoder_outputs = get_encoder_outputs(model, input_ids, attention_mask)
+        
+        word_embeddings.append(encoder_outputs.cpu())
         
     # Save embeddings locally
-    output_path = os.path.join(cfg.outputs.save_dir, 'abx_word_embeddings.pt')
+    output_path = os.path.join(cfg.outputs.save_dir, 'word_embeddings.pt')
     os.makedirs(cfg.outputs.save_dir, exist_ok=True)
     print(f"Saving embeddings to: {output_path}")
-    torch.save(sentence_embeddings, output_path)
+    torch.save(word_embeddings, output_path)
 
 
 if __name__ == '__main__':

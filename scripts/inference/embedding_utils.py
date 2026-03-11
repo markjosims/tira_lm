@@ -1,7 +1,7 @@
 import torch
 
 
-def get_encoder_outputs(model, input_ids) -> torch.Tensor:
+def get_encoder_outputs(model, inputs) -> torch.Tensor:
     """
     Get the encoder outputs for the given input_ids.
     Syntax for accessing encoder outputs differs based on whether
@@ -10,11 +10,11 @@ def get_encoder_outputs(model, input_ids) -> torch.Tensor:
     """
     if hasattr(model, 'encoder'):
         with torch.no_grad():
-            outputs = model.encoder(input_ids=input_ids)
+            outputs = model.encoder(**inputs)
         encoder_out = outputs.last_hidden_state.to('cpu')
     else:
         with torch.no_grad():
-            outputs = model(input_ids=input_ids)
+            outputs = model(**inputs)
         encoder_out = outputs.encoder_last_hidden_state.to('cpu')
     del outputs
     return encoder_out
