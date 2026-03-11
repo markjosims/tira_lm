@@ -37,7 +37,7 @@ def get_word_token_indices(batch_index, batch, record_type, tokenizer):
         word = batch['strings'][word_key][batch_index]
         return get_word_token_indices_slow_tokenizer(sentence, word)
     
-    sentence_encoding = batch[sentence_key].encoding[batch_index]
+    sentence_encoding = batch[sentence_key].encodings[batch_index]
     word_range = batch[word_index_key][batch_index].tolist()
     return get_word_token_indices_fast_tokenizer(sentence_encoding, word_range)    
 
@@ -169,10 +169,9 @@ def main(cfg: DictConfig):
         for key in batch_embeddings:
             if key not in embeddings:
                 embeddings[key] = []
-            embeddings[key] = torch.cat(
-                [embeddings[key], batch_embeddings[key].cpu()],
-                dim=0
-            )
+            embeddings[key].append(batch_embeddings[key])
+    for key in embeddings:
+        embeddings[key] = torch.cat(embeddings[key])
         
     # Save embeddings locally
     output_path = os.path.join(output_path, 'abx_word_embeddings.pt')
