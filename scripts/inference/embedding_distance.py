@@ -10,13 +10,14 @@ import os
 from omegaconf import DictConfig, OmegaConf
 from transformers import (
     AutoTokenizer, 
-    AutoModelForSeq2SeqLM, 
+    AutoModelForSeq2SeqLM,
+    BatchEncoding,
 )
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 from torch.nn import functional as F
 from scripts.constants import abx_sentence_list, device
-from typing import List
+from typing import List, Dict, Any, Union
 
 class AbxDataset(Dataset):
     def __init__(
@@ -57,8 +58,21 @@ class AbxDataset(Dataset):
         breakpoint()
         return item
 
-def collate_batch(batch_list: List[Dict[str, Any]]):
-    ...
+def collate_batch(
+        batch_list: List[Dict[str, Any]]
+) -> Dict[str, Union[BatchEncoding, torch.Tensor]]:
+    collated_batch = {}
+    for key in batch_list[0].keys():
+        if key.startswith('sentence_'):
+            data = {
+                'input_ids': torch.stack([item[key]['input_ids'] for item in batch_list]),
+                'attention_mask': torch.stack([item[key]['attention_mask'] for item in batch_list]),
+            }
+            encodings = [item[key].encoding for item in batch_list]
+            collated_batch[key] = BatchEncoding(data=data, encoding=encodings)
+        else:
+            collated_batch[key] = torch.stack([item[key] for item in batch_list])
+    return collated_batch
     
 def get_word_token_indices(token_encoding, word_range):
     """
@@ -158,7 +172,12 @@ def main(cfg: DictConfig):
         cfg.model.max_length,
         device=device,
     )
-    dataloader = DataLoader(dataset, batch_size=cfg.inference.batch_size)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=cfg.inference.batch_size,
+        collate_fn=collate_batch,
+        shuffle=False,
+    )
     
     # Compute Embeddings and Distances
     print("Computing embeddings and distances...")
