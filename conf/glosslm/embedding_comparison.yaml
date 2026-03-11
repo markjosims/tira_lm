@@ -1,0 +1,19 @@
+model:
+  name: "lecslab/glosslm"
+  local_path: "../training/outputs/glosslm/translation/model"
+  max_length: 512
+  device: 'cuda'
+
+data:
+  path: "../../data/abx_sentences.csv"
+  task:
+    format: "ABX"
+    src_lang_code: "sw_KE"
+    tgt_lang_code: "en_XX"
+
+inference:
+  batch_size: 64
+
+wandb:
+  project: "Tira-LM"
+  run_name: "glosslm-embedding-comparison"
